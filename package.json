@@ -1,0 +1,36 @@
+{
+  "name": "tres-vibes",
+  "version": "0.1.0",
+  "description": "accelerated on device model serving over mcp",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "install": "node scripts/prepare-prebuilt.mjs prebuild && node-gyp rebuild && node scripts/prepare-prebuilt.mjs postbuild",
+    "build": "node scripts/prepare-prebuilt.mjs prebuild && node-gyp rebuild && node scripts/prepare-prebuilt.mjs postbuild && bun run build:ts",
+    "build:runtime": "bazel build //rust_api:litert_lm_rust_api --define=litert_link_capi_so=true --define=resolve_symbols_in_exec=false",
+    "build:ts": "bun build src/index.ts --outdir dist --target node",
+    "test": "bun test",
+    "clean": "node-gyp clean && rm -rf dist build"
+  },
+  "gypfile": true,
+  "keywords": [
+    "litert",
+    "llm",
+    "native",
+    "node-addon",
+    "mcp"
+  ],
+  "author": "MCP Team",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "~5.4.5",
+    "@types/node": "^20.11.25",
+    "node-gyp": "^10.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.11.0",
+    "zod": "^3.22.4",
+    "node-addon-api": "^8.0.0"
+  }
+}
