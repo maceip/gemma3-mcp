@@ -44,11 +44,8 @@ from datasets import load_dataset, Dataset
 from peft import LoraConfig, get_peft_model, PeftModel
 from transformers import (
     AutoModelForCausalLM,
-    AutoProcessor,
     AutoTokenizer,
     BitsAndBytesConfig,
-    GemmaConfig,
-    GemmaForCausalLM,
 )
 from trl import SFTConfig, SFTTrainer
 
@@ -485,18 +482,15 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # --- Add special tokens for function calling ---
-    special_tokens = [
-        "<start_function_call>",
-        "<end_function_call>",
-        "<start_function_response>",
-        "<end_function_response>",
-        "<escape>",
-    ]
-    num_added = tokenizer.add_special_tokens(
-        {"additional_special_tokens": special_tokens}
-    )
-    print(f"Added {num_added} special tokens for function calling")
+    # NOTE: We do NOT add special tokens for function calling markers like
+    # <start_function_call>, <end_function_call>, etc. Gemma 3n is a multimodal
+    # model with partitioned embeddings (text, audio, vision). Adding tokens
+    # and calling resize_token_embeddings() only resizes the text embedding
+    # table, but new token IDs can fall into the audio embedding range (which
+    # isn't resized), causing IndexError in embed_audio during forward pass.
+    # Instead, the function-calling markers are kept as plain text and get
+    # tokenized into subwords. The model learns the pattern during fine-tuning.
+    print("Using function-calling markers as plain text (no special token injection)")
 
     # --- Override chat template for function-calling support ---
     # The default Gemma 3n tokenizer template enforces strict user/assistant
@@ -575,8 +569,7 @@ def main():
             torch_dtype=torch.float32 if args.dry_run else torch.bfloat16,
         )
 
-    # Resize embeddings for new special tokens
-    model.resize_token_embeddings(len(tokenizer))
+    # No embedding resize needed — we don't add special tokens (see above)
 
     # --- Apply LoRA ---
     lora_config = LoraConfig(
@@ -758,7 +751,7 @@ def main():
             device_map="auto",
             torch_dtype=torch.bfloat16,
         )
-        base_model.resize_token_embeddings(len(tokenizer))
+        # No embedding resize needed — we use plain text markers, not special tokens
         merged_model = PeftModel.from_pretrained(base_model, adapter_dir)
         merged_model = merged_model.merge_and_unload()
 
