@@ -1,0 +1,549 @@
+"""
+Fine-tune Gemma 3n for Function Calling
+
+Applies Google's FunctionGemma technique (Mobile Actions fine-tuning) to the
+larger Gemma 3n E2B model instead of the 270M FunctionGemma model.
+
+This script:
+  1. Loads the Gemma 3n E2B instruction-tuned model
+  2. Applies LoRA adapters for efficient fine-tuning
+  3. Trains on function-calling data using the FunctionGemma prompt format
+  4. Merges adapters and exports to HuggingFace format
+  5. Converts to .litertlm format for on-device deployment
+
+The fine-tuned model uses the same special tokens as FunctionGemma:
+  <start_function_call>call:function_name{param:<escape>value<escape>}<end_function_call>
+
+Usage:
+  pip install torch transformers peft trl datasets accelerate bitsandbytes
+  python scripts/finetune-gemma3n-function-calling.py \
+    --base_model google/gemma-3n-E2B-it \
+    --output_dir ./gemma3n-agent \
+    --dataset kontextdev/function-calling-data \
+    --epochs 3
+
+References:
+  - https://ai.google.dev/gemma/docs/mobile-actions
+  - https://huggingface.co/google/functiongemma-270m-it
+  - https://ai.google.dev/gemma/docs/functiongemma/function-calling-with-hf
+"""
+
+import argparse
+import json
+import os
+
+import torch
+from datasets import load_dataset, Dataset
+from peft import LoraConfig, get_peft_model, PeftModel
+from transformers import (
+    AutoModelForCausalLM,
+    AutoProcessor,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+    TrainingArguments,
+)
+from trl import SFTTrainer
+
+
+# =============================================================================
+# Function-calling prompt format (matches FunctionGemma / Gemma 3n template)
+# =============================================================================
+
+SYSTEM_TEMPLATE = """You are a helpful assistant with access to the following functions.
+Use them when needed to help the user.
+
+Available functions:
+{tool_declarations}"""
+
+TOOL_DECLARATION_TEMPLATE = """{{"name": "{name}", "description": "{description}", "parameters": {parameters}}}"""
+
+
+def format_tool_declarations(tools: list[dict]) -> str:
+    """Format tool declarations as the model expects them."""
+    declarations = []
+    for tool in tools:
+        if "function" in tool:
+            fn = tool["function"]
+        else:
+            fn = tool
+        declarations.append(
+            TOOL_DECLARATION_TEMPLATE.format(
+                name=fn["name"],
+                description=fn["description"],
+                parameters=json.dumps(fn.get("parameters", {})),
+            )
+        )
+    return "\n".join(declarations)
+
+
+def format_function_call(name: str, arguments: dict) -> str:
+    """Format a function call in FunctionGemma style with <escape> tokens."""
+    args_parts = []
+    for key, value in arguments.items():
+        args_parts.append(f"{key}:<escape>{value}<escape>")
+    args_str = ",".join(args_parts)
+    return f"<start_function_call>call:{name}{{{args_str}}}<end_function_call>"
+
+
+def format_function_response(name: str, result: dict) -> str:
+    """Format a function response for training."""
+    result_parts = []
+    for key, value in result.items():
+        result_parts.append(f"{key}:<escape>{value}<escape>")
+    result_str = ",".join(result_parts)
+    return f"<start_function_response>response:{name}{{{result_str}}}<end_function_response>"
+
+
+def build_training_example(sample: dict, tokenizer) -> str:
+    """
+    Convert a function-calling training sample into a formatted prompt.
+
+    Expected sample format (Mobile Actions style):
+    {
+        "tools": [...],              # Tool/function declarations
+        "system_prompt": "...",      # Optional system context
+        "user_prompt": "...",        # User's request
+        "function_call": {           # Expected function call
+            "name": "...",
+            "arguments": {...}
+        },
+        "function_response": {...},  # Tool execution result (optional)
+        "assistant_response": "..."  # Final natural language response (optional)
+    }
+    """
+    tools = sample.get("tools", [])
+    system_prompt = sample.get("system_prompt", "")
+    user_prompt = sample.get("user_prompt", "")
+    function_call = sample.get("function_call", {})
+    function_response = sample.get("function_response", None)
+    assistant_response = sample.get("assistant_response", None)
+
+    # Build the conversation
+    tool_declarations = format_tool_declarations(tools)
+
+    system_content = SYSTEM_TEMPLATE.format(tool_declarations=tool_declarations)
+    if system_prompt:
+        system_content += f"\n\nContext: {system_prompt}"
+
+    messages = [
+        {"role": "developer", "content": system_content},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    # The model should output the function call
+    call_text = format_function_call(
+        function_call["name"], function_call.get("arguments", {})
+    )
+    messages.append({"role": "model", "content": call_text})
+
+    # If there's a function response and final answer, include them
+    if function_response is not None:
+        response_text = format_function_response(
+            function_call["name"], function_response
+        )
+        messages.append({"role": "tool", "content": response_text})
+
+        if assistant_response:
+            messages.append({"role": "model", "content": assistant_response})
+
+    # Apply chat template
+    text = tokenizer.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=False
+    )
+    return text
+
+
+# =============================================================================
+# Synthetic training data (fallback if no dataset provided)
+# =============================================================================
+
+SYNTHETIC_SAMPLES = [
+    {
+        "tools": [
+            {
+                "name": "get_weather",
+                "description": "Get current weather for a location",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {"type": "string", "description": "City name"},
+                        "unit": {
+                            "type": "string",
+                            "enum": ["celsius", "fahrenheit"],
+                        },
+                    },
+                    "required": ["location"],
+                },
+            }
+        ],
+        "user_prompt": "What's the weather like in Tokyo?",
+        "function_call": {"name": "get_weather", "arguments": {"location": "Tokyo"}},
+        "function_response": {
+            "temperature": "22",
+            "condition": "Partly cloudy",
+            "unit": "celsius",
+        },
+        "assistant_response": "The weather in Tokyo is currently 22°C and partly cloudy.",
+    },
+    {
+        "tools": [
+            {
+                "name": "send_message",
+                "description": "Send a text message to a contact",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "recipient": {
+                            "type": "string",
+                            "description": "Contact name",
+                        },
+                        "message": {
+                            "type": "string",
+                            "description": "Message text",
+                        },
+                    },
+                    "required": ["recipient", "message"],
+                },
+            }
+        ],
+        "user_prompt": "Text Sarah that I'll be 10 minutes late",
+        "function_call": {
+            "name": "send_message",
+            "arguments": {
+                "recipient": "Sarah",
+                "message": "I'll be 10 minutes late",
+            },
+        },
+        "function_response": {"status": "sent", "timestamp": "2025-01-15T10:30:00Z"},
+        "assistant_response": "Done! I've sent Sarah a message saying you'll be 10 minutes late.",
+    },
+    {
+        "tools": [
+            {
+                "name": "set_alarm",
+                "description": "Set an alarm for a specific time",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "time": {
+                            "type": "string",
+                            "description": "Time in HH:MM format",
+                        },
+                        "label": {
+                            "type": "string",
+                            "description": "Alarm label",
+                        },
+                    },
+                    "required": ["time"],
+                },
+            }
+        ],
+        "user_prompt": "Wake me up at 6:30 tomorrow morning",
+        "function_call": {
+            "name": "set_alarm",
+            "arguments": {"time": "06:30", "label": "Morning alarm"},
+        },
+        "function_response": {"status": "set", "time": "06:30", "label": "Morning alarm"},
+        "assistant_response": "I've set an alarm for 6:30 AM labeled 'Morning alarm'.",
+    },
+    {
+        "tools": [
+            {
+                "name": "search_contacts",
+                "description": "Search for contacts by name",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Name to search for",
+                        }
+                    },
+                    "required": ["query"],
+                },
+            },
+            {
+                "name": "make_call",
+                "description": "Call a phone number",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "phone_number": {
+                            "type": "string",
+                            "description": "Phone number to call",
+                        }
+                    },
+                    "required": ["phone_number"],
+                },
+            },
+        ],
+        "user_prompt": "Call Mom",
+        "function_call": {
+            "name": "search_contacts",
+            "arguments": {"query": "Mom"},
+        },
+        "function_response": {
+            "name": "Mom",
+            "phone_number": "+1-555-0100",
+        },
+        "assistant_response": "Found Mom's number. Calling +1-555-0100 now.",
+    },
+    {
+        "tools": [
+            {
+                "name": "get_directions",
+                "description": "Get directions between two locations",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "origin": {"type": "string", "description": "Starting location"},
+                        "destination": {
+                            "type": "string",
+                            "description": "Destination",
+                        },
+                        "mode": {
+                            "type": "string",
+                            "enum": ["driving", "walking", "transit"],
+                        },
+                    },
+                    "required": ["destination"],
+                },
+            }
+        ],
+        "user_prompt": "How do I get to the airport?",
+        "function_call": {
+            "name": "get_directions",
+            "arguments": {"destination": "airport", "mode": "driving"},
+        },
+    },
+]
+
+
+def create_synthetic_dataset() -> Dataset:
+    """Create a small synthetic dataset for testing the pipeline."""
+    return Dataset.from_list(SYNTHETIC_SAMPLES)
+
+
+# =============================================================================
+# Main training pipeline
+# =============================================================================
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Fine-tune Gemma 3n for function calling"
+    )
+    parser.add_argument(
+        "--base_model",
+        type=str,
+        default="google/gemma-3n-E2B-it",
+        help="Base model ID on HuggingFace (default: google/gemma-3n-E2B-it)",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="./gemma3n-function-calling",
+        help="Output directory for fine-tuned model",
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default=None,
+        help="HuggingFace dataset ID for training data (uses synthetic data if not provided)",
+    )
+    parser.add_argument(
+        "--epochs", type=int, default=3, help="Number of training epochs"
+    )
+    parser.add_argument(
+        "--batch_size", type=int, default=4, help="Training batch size"
+    )
+    parser.add_argument(
+        "--learning_rate", type=float, default=2e-4, help="Learning rate"
+    )
+    parser.add_argument(
+        "--max_seq_length", type=int, default=2048, help="Maximum sequence length"
+    )
+    parser.add_argument(
+        "--lora_r", type=int, default=16, help="LoRA rank"
+    )
+    parser.add_argument(
+        "--lora_alpha", type=int, default=32, help="LoRA alpha"
+    )
+    parser.add_argument(
+        "--use_4bit",
+        action="store_true",
+        default=True,
+        help="Use 4-bit quantization for training (QLoRA)",
+    )
+    parser.add_argument(
+        "--merge_and_push",
+        action="store_true",
+        help="Merge LoRA adapters and push to HuggingFace Hub",
+    )
+    parser.add_argument(
+        "--hub_model_id",
+        type=str,
+        default=None,
+        help="HuggingFace Hub model ID for pushing (e.g. kontextdev/agent-gemma)",
+    )
+    args = parser.parse_args()
+
+    print(f"Base model: {args.base_model}")
+    print(f"Output dir: {args.output_dir}")
+    print(f"LoRA rank: {args.lora_r}, alpha: {args.lora_alpha}")
+    print(f"4-bit quantization: {args.use_4bit}")
+
+    # --- Load tokenizer ---
+    tokenizer = AutoTokenizer.from_pretrained(args.base_model)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    # --- Add special tokens for function calling ---
+    special_tokens = [
+        "<start_function_call>",
+        "<end_function_call>",
+        "<start_function_response>",
+        "<end_function_response>",
+        "<escape>",
+    ]
+    num_added = tokenizer.add_special_tokens(
+        {"additional_special_tokens": special_tokens}
+    )
+    print(f"Added {num_added} special tokens for function calling")
+
+    # --- Load model ---
+    if args.use_4bit:
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=True,
+        )
+        model = AutoModelForCausalLM.from_pretrained(
+            args.base_model,
+            quantization_config=bnb_config,
+            device_map="auto",
+            torch_dtype=torch.bfloat16,
+        )
+    else:
+        model = AutoModelForCausalLM.from_pretrained(
+            args.base_model,
+            device_map="auto",
+            torch_dtype=torch.bfloat16,
+        )
+
+    # Resize embeddings for new special tokens
+    model.resize_token_embeddings(len(tokenizer))
+
+    # --- Apply LoRA ---
+    lora_config = LoraConfig(
+        r=args.lora_r,
+        lora_alpha=args.lora_alpha,
+        lora_dropout=0.05,
+        bias="none",
+        task_type="CAUSAL_LM",
+        target_modules=[
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
+    )
+    model = get_peft_model(model, lora_config)
+    model.print_trainable_parameters()
+
+    # --- Load dataset ---
+    if args.dataset:
+        print(f"Loading dataset: {args.dataset}")
+        dataset = load_dataset(args.dataset, split="train")
+    else:
+        print("Using synthetic function-calling dataset for demo")
+        dataset = create_synthetic_dataset()
+
+    # --- Format dataset ---
+    def format_sample(sample):
+        return {"text": build_training_example(sample, tokenizer)}
+
+    formatted_dataset = dataset.map(format_sample)
+    print(f"Training samples: {len(formatted_dataset)}")
+
+    # --- Training arguments ---
+    training_args = TrainingArguments(
+        output_dir=args.output_dir,
+        num_train_epochs=args.epochs,
+        per_device_train_batch_size=args.batch_size,
+        gradient_accumulation_steps=4,
+        learning_rate=args.learning_rate,
+        weight_decay=0.01,
+        warmup_ratio=0.1,
+        lr_scheduler_type="cosine",
+        logging_steps=10,
+        save_strategy="epoch",
+        bf16=True,
+        optim="paged_adamw_8bit" if args.use_4bit else "adamw_torch",
+        max_grad_norm=0.3,
+        report_to="none",
+    )
+
+    # --- Train ---
+    trainer = SFTTrainer(
+        model=model,
+        args=training_args,
+        train_dataset=formatted_dataset,
+        processing_class=tokenizer,
+        max_seq_length=args.max_seq_length,
+    )
+
+    print("Starting training...")
+    trainer.train()
+
+    # --- Save LoRA adapters ---
+    adapter_dir = os.path.join(args.output_dir, "lora-adapters")
+    model.save_pretrained(adapter_dir)
+    tokenizer.save_pretrained(adapter_dir)
+    print(f"LoRA adapters saved to: {adapter_dir}")
+
+    # --- Merge and export ---
+    if args.merge_and_push:
+        print("Merging LoRA adapters into base model...")
+        base_model = AutoModelForCausalLM.from_pretrained(
+            args.base_model,
+            device_map="auto",
+            torch_dtype=torch.bfloat16,
+        )
+        base_model.resize_token_embeddings(len(tokenizer))
+        merged_model = PeftModel.from_pretrained(base_model, adapter_dir)
+        merged_model = merged_model.merge_and_unload()
+
+        merged_dir = os.path.join(args.output_dir, "merged")
+        merged_model.save_pretrained(merged_dir)
+        tokenizer.save_pretrained(merged_dir)
+        print(f"Merged model saved to: {merged_dir}")
+
+        if args.hub_model_id:
+            print(f"Pushing to HuggingFace Hub: {args.hub_model_id}")
+            merged_model.push_to_hub(args.hub_model_id)
+            tokenizer.push_to_hub(args.hub_model_id)
+            print("Push complete!")
+
+    print("\n=== Next steps ===")
+    print("1. Convert to .litertlm format using LiteRT-LM tools:")
+    print("   python scripts/convert-to-litertlm.py \\")
+    print(f"     --model_dir {args.output_dir}/merged \\")
+    print("     --output gemma-3n-E2B-it-agent.litertlm")
+    print("")
+    print("2. Test with the function-calling example:")
+    print("   bun examples/function-calling.ts gemma-3n-E2B-it-agent.litertlm")
+    print("")
+    print("3. For Kotlin/Android, use the LiteRT-LM Kotlin API:")
+    print('   val engine = Engine(EngineConfig(modelPath = "agent.litertlm"))')
+    print("   val conv = engine.createConversation(ConversationConfig(")
+    print("     tools = listOf(tool(MyToolSet()))")
+    print("   ))")
+
+
+if __name__ == "__main__":
+    main()
