@@ -11,7 +11,7 @@ This script:
   4. Merges adapters and exports to HuggingFace format
   5. Converts to .litertlm format for on-device deployment
 
-The fine-tuned model uses the same special tokens as FunctionGemma:
+The fine-tuned model uses the same markup as FunctionGemma:
   <start_function_call>call:function_name{param:<escape>value<escape>}<end_function_call>
 
 Usage:
@@ -24,9 +24,6 @@ Usage:
     --output_dir ./gemma3n-agent \
     --epochs 3
 
-  # Dry run (no HF auth needed, validates full pipeline)
-  python scripts/finetune-gemma3n-function-calling.py --dry_run
-
 References:
   - https://ai.google.dev/gemma/docs/mobile-actions
   - https://huggingface.co/google/functiongemma-270m-it
@@ -36,11 +33,10 @@ References:
 import argparse
 import json
 import os
-import shutil
 import sys
 
 import torch
-from datasets import load_dataset, Dataset
+from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, PeftModel
 from transformers import (
     AutoModelForCausalLM,
@@ -51,302 +47,61 @@ from trl import SFTConfig, SFTTrainer
 
 
 # =============================================================================
-# Function-calling prompt format (matches FunctionGemma / Gemma 3n template)
+# Function-calling chat template for Gemma 3n
 # =============================================================================
 
-SYSTEM_TEMPLATE = """You are a helpful assistant with access to the following functions.
-Use them when needed to help the user.
-
-Available functions:
-{tool_declarations}"""
-
-TOOL_DECLARATION_TEMPLATE = """{{"name": "{name}", "description": "{description}", "parameters": {parameters}}}"""
-
-
-def format_tool_declarations(tools: list[dict]) -> str:
-    """Format tool declarations as the model expects them."""
-    declarations = []
-    for tool in tools:
-        if "function" in tool:
-            fn = tool["function"]
-        else:
-            fn = tool
-        declarations.append(
-            TOOL_DECLARATION_TEMPLATE.format(
-                name=fn["name"],
-                description=fn["description"],
-                parameters=json.dumps(fn.get("parameters", {})),
-            )
-        )
-    return "\n".join(declarations)
-
-
-def format_function_call(name: str, arguments: dict) -> str:
-    """Format a function call in FunctionGemma style with <escape> tokens."""
-    args_parts = []
-    for key, value in arguments.items():
-        args_parts.append(f"{key}:<escape>{value}<escape>")
-    args_str = ",".join(args_parts)
-    return f"<start_function_call>call:{name}{{{args_str}}}<end_function_call>"
-
-
-def format_function_response(name: str, result: dict) -> str:
-    """Format a function response for training."""
-    result_parts = []
-    for key, value in result.items():
-        result_parts.append(f"{key}:<escape>{value}<escape>")
-    result_str = ",".join(result_parts)
-    return f"<start_function_response>response:{name}{{{result_str}}}<end_function_response>"
-
-
-def build_training_example(sample: dict, tokenizer) -> str:
-    """
-    Convert a function-calling training sample into a formatted prompt.
-
-    Uses the same approach as Google's Mobile Actions notebook:
-    tokenizer.apply_chat_template(messages, tools=tools) with proper
-    tool_calls in the assistant message. This ensures compatibility with
-    Gemma 3n's strict role alternation requirements.
-
-    Expected sample format:
-    {
-        "tools": [...],              # Tool/function declarations
-        "system_prompt": "...",      # Optional system context
-        "user_prompt": "...",        # User's request
-        "function_call": {           # Expected function call
-            "name": "...",
-            "arguments": {...}
-        },
-        "function_response": {...},  # Tool execution result (optional)
-        "assistant_response": "..."  # Final natural language response (optional)
-    }
-    """
-    raw_tools = sample.get("tools", [])
-    system_prompt = sample.get("system_prompt", "")
-    user_prompt = sample.get("user_prompt", "")
-    function_call = sample.get("function_call", {})
-    function_response = sample.get("function_response", None)
-    assistant_response = sample.get("assistant_response", None)
-
-    # Wrap tools in {"function": ...} format expected by apply_chat_template
-    tools = []
-    for t in raw_tools:
-        if "function" in t:
-            tools.append(t)
-        else:
-            tools.append({"function": t})
-
-    # Build messages in the format Gemma's chat template expects
-    messages = []
-
-    # System prompt goes in a "user" prefixed message (Gemma merges it)
-    if system_prompt:
-        messages.append({"role": "user", "content": f"{system_prompt}\n\n{user_prompt}"})
-    else:
-        messages.append({"role": "user", "content": user_prompt})
-
-    # Assistant turn with tool_calls (matches Mobile Actions format)
-    fc_name = function_call.get("name", "")
-    fc_args = function_call.get("arguments", {})
-    messages.append({
-        "role": "assistant",
-        "content": None,
-        "tool_calls": [{
-            "id": "call_0",
-            "type": "function",
-            "function": {
-                "name": fc_name,
-                "arguments": json.dumps(fc_args),
-            },
-        }],
-    })
-
-    # If there's a function response and final answer, include them
-    if function_response is not None:
-        messages.append({
-            "role": "tool",
-            "content": json.dumps(function_response),
-            "tool_call_id": "call_0",
-        })
-        if assistant_response:
-            messages.append({"role": "assistant", "content": assistant_response})
-
-    # Apply chat template with tools= parameter (activates tool-calling path)
-    text = tokenizer.apply_chat_template(
-        messages, tools=tools, tokenize=False, add_generation_prompt=False
-    )
-    return text
-
-
-# =============================================================================
-# Synthetic training data (fallback if no dataset provided)
-# =============================================================================
-
-SYNTHETIC_SAMPLES = [
-    {
-        "tools": [
-            {
-                "name": "get_weather",
-                "description": "Get current weather for a location",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "location": {"type": "string", "description": "City name"},
-                        "unit": {
-                            "type": "string",
-                            "enum": ["celsius", "fahrenheit"],
-                        },
-                    },
-                    "required": ["location"],
-                },
-            }
-        ],
-        "user_prompt": "What's the weather like in Tokyo?",
-        "function_call": {"name": "get_weather", "arguments": {"location": "Tokyo"}},
-        "function_response": {
-            "temperature": "22",
-            "condition": "Partly cloudy",
-            "unit": "celsius",
-        },
-        "assistant_response": "The weather in Tokyo is currently 22°C and partly cloudy.",
-    },
-    {
-        "tools": [
-            {
-                "name": "send_message",
-                "description": "Send a text message to a contact",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "recipient": {
-                            "type": "string",
-                            "description": "Contact name",
-                        },
-                        "message": {
-                            "type": "string",
-                            "description": "Message text",
-                        },
-                    },
-                    "required": ["recipient", "message"],
-                },
-            }
-        ],
-        "user_prompt": "Text Sarah that I'll be 10 minutes late",
-        "function_call": {
-            "name": "send_message",
-            "arguments": {
-                "recipient": "Sarah",
-                "message": "I'll be 10 minutes late",
-            },
-        },
-        "function_response": {"status": "sent", "timestamp": "2025-01-15T10:30:00Z"},
-        "assistant_response": "Done! I've sent Sarah a message saying you'll be 10 minutes late.",
-    },
-    {
-        "tools": [
-            {
-                "name": "set_alarm",
-                "description": "Set an alarm for a specific time",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "time": {
-                            "type": "string",
-                            "description": "Time in HH:MM format",
-                        },
-                        "label": {
-                            "type": "string",
-                            "description": "Alarm label",
-                        },
-                    },
-                    "required": ["time"],
-                },
-            }
-        ],
-        "user_prompt": "Wake me up at 6:30 tomorrow morning",
-        "function_call": {
-            "name": "set_alarm",
-            "arguments": {"time": "06:30", "label": "Morning alarm"},
-        },
-        "function_response": {"status": "set", "time": "06:30", "label": "Morning alarm"},
-        "assistant_response": "I've set an alarm for 6:30 AM labeled 'Morning alarm'.",
-    },
-    {
-        "tools": [
-            {
-                "name": "search_contacts",
-                "description": "Search for contacts by name",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "Name to search for",
-                        }
-                    },
-                    "required": ["query"],
-                },
-            },
-            {
-                "name": "make_call",
-                "description": "Call a phone number",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "phone_number": {
-                            "type": "string",
-                            "description": "Phone number to call",
-                        }
-                    },
-                    "required": ["phone_number"],
-                },
-            },
-        ],
-        "user_prompt": "Call Mom",
-        "function_call": {
-            "name": "search_contacts",
-            "arguments": {"query": "Mom"},
-        },
-        "function_response": {
-            "name": "Mom",
-            "phone_number": "+1-555-0100",
-        },
-        "assistant_response": "Found Mom's number. Calling +1-555-0100 now.",
-    },
-    {
-        "tools": [
-            {
-                "name": "get_directions",
-                "description": "Get directions between two locations",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "origin": {"type": "string", "description": "Starting location"},
-                        "destination": {
-                            "type": "string",
-                            "description": "Destination",
-                        },
-                        "mode": {
-                            "type": "string",
-                            "enum": ["driving", "walking", "transit"],
-                        },
-                    },
-                    "required": ["destination"],
-                },
-            }
-        ],
-        "user_prompt": "How do I get to the airport?",
-        "function_call": {
-            "name": "get_directions",
-            "arguments": {"destination": "airport", "mode": "driving"},
-        },
-    },
-]
-
-
-def create_synthetic_dataset() -> Dataset:
-    """Create a small synthetic dataset for testing the pipeline."""
-    return Dataset.from_list(SYNTHETIC_SAMPLES)
+# The default Gemma 3n tokenizer template enforces strict user/assistant
+# alternation and doesn't support developer/tool roles or tool_calls.
+# We override it with a template that handles the full function-calling
+# conversation flow: developer (system) -> user -> assistant (with tool_calls)
+# -> tool (response) -> assistant (final answer).
+# This matches how Google's FunctionGemma tokenizer handles the Mobile Actions
+# dataset format (developer + user + assistant w/ tool_calls).
+FUNCTION_CALLING_CHAT_TEMPLATE = (
+    "{%- for message in messages -%}"
+    "{%- if message.role == 'developer' or message.role == 'system' -%}"
+    "<start_of_turn>developer\n"
+    "{{ message.content }}"
+    "{%- if tools is defined and tools|length > 0 %}\n\n"
+    "Available tools:"
+    "{%- for tool in tools %}\n"
+    "<start_function_declaration>"
+    "{%- if tool.function is defined %}"
+    "{{ tool.function | tojson }}"
+    "{%- else %}"
+    "{{ tool | tojson }}"
+    "{%- endif %}"
+    "<end_function_declaration>"
+    "{%- endfor %}"
+    "{%- endif %}"
+    "<end_of_turn>\n"
+    "{%- elif message.role == 'user' -%}"
+    "<start_of_turn>user\n"
+    "{{ message.content }}<end_of_turn>\n"
+    "{%- elif message.role == 'model' or message.role == 'assistant' -%}"
+    "<start_of_turn>model\n"
+    "{%- if message.tool_calls is defined and message.tool_calls -%}"
+    "{%- for tc in message.tool_calls -%}"
+    "<start_function_call>call:{{ tc.function.name }}{{ '{' }}"
+    "{%- for k, v in tc.function.arguments.items() -%}"
+    "{{ k }}:<escape>{{ v }}<escape>"
+    "{%- if not loop.last %},{% endif -%}"
+    "{%- endfor -%}"
+    "{{ '}' }}<end_function_call>"
+    "{%- endfor -%}"
+    "{%- else -%}"
+    "{{ message.content }}"
+    "{%- endif -%}"
+    "<end_of_turn>\n"
+    "{%- elif message.role == 'tool' -%}"
+    "<start_of_turn>tool\n"
+    "{{ message.content }}<end_of_turn>\n"
+    "{%- endif -%}"
+    "{%- endfor -%}"
+    "{%- if add_generation_prompt -%}"
+    "<start_of_turn>model\n"
+    "{%- endif -%}"
+)
 
 
 # =============================================================================
@@ -374,7 +129,7 @@ def main():
         "--dataset",
         type=str,
         default="google/mobile-actions",
-        help="HuggingFace dataset ID (default: google/mobile-actions, use 'none' for synthetic data)",
+        help="HuggingFace dataset ID (default: google/mobile-actions)",
     )
     parser.add_argument(
         "--epochs", type=int, default=3, help="Number of training epochs"
@@ -411,66 +166,7 @@ def main():
         default=None,
         help="HuggingFace Hub model ID for pushing (e.g. kontextdev/agent-gemma)",
     )
-    parser.add_argument(
-        "--dry_run",
-        action="store_true",
-        help="Run full pipeline with a tiny local Gemma-architecture model (no HF auth needed)",
-    )
     args = parser.parse_args()
-
-    # --- Dry run: create a tiny Gemma-architecture model locally ---
-    if args.dry_run:
-        print("=== DRY RUN MODE ===")
-        print("Creating tiny Gemma-architecture model for pipeline validation...")
-        args.use_4bit = False  # 4-bit not needed for tiny model
-        args.epochs = 1
-        args.batch_size = 2
-        args.max_seq_length = 256
-        args.lora_r = 4
-        args.lora_alpha = 8
-
-        dry_run_dir = os.path.join(args.output_dir, "_dry_run_model")
-        os.makedirs(dry_run_dir, exist_ok=True)
-
-        # Create a minimal Gemma config (same architecture, tiny dimensions)
-        config = GemmaConfig(
-            vocab_size=32000,
-            hidden_size=64,
-            intermediate_size=128,
-            num_hidden_layers=2,
-            num_attention_heads=4,
-            num_key_value_heads=2,
-            head_dim=16,
-            max_position_embeddings=512,
-        )
-        tiny_model = GemmaForCausalLM(config)
-        tiny_model.save_pretrained(dry_run_dir)
-
-        # Create a minimal tokenizer from the Gemma template
-        from transformers import GemmaTokenizerFast
-        # Use a pre-trained tokenizer that's publicly accessible as template
-        # Fall back to a basic tokenizer if needed
-        try:
-            tokenizer = AutoTokenizer.from_pretrained("HuggingFaceTB/SmolLM2-135M-Instruct")
-        except Exception:
-            from transformers import PreTrainedTokenizerFast
-            tokenizer = PreTrainedTokenizerFast.from_pretrained("gpt2")
-            tokenizer.pad_token = tokenizer.eos_token
-
-        # Set Gemma-style chat template
-        tokenizer.chat_template = (
-            "{% for message in messages %}"
-            "<start_of_turn>{{ message.role }}\n"
-            "{{ message.content }}<end_of_turn>\n"
-            "{% endfor %}"
-            "{% if add_generation_prompt %}<start_of_turn>model\n{% endif %}"
-        )
-        tokenizer.save_pretrained(dry_run_dir)
-        args.base_model = dry_run_dir
-        args.dataset = "none"  # Use synthetic data for dry run
-        print(f"Tiny Gemma model created at: {dry_run_dir}")
-        print(f"  Config: {config.num_hidden_layers} layers, {config.hidden_size} hidden, {config.vocab_size} vocab")
-        print()
 
     print(f"Base model: {args.base_model}")
     print(f"Output dir: {args.output_dir}")
@@ -493,63 +189,11 @@ def main():
     print("Using function-calling markers as plain text (no special token injection)")
 
     # --- Override chat template for function-calling support ---
-    # The default Gemma 3n tokenizer template enforces strict user/assistant
-    # alternation and doesn't support developer/tool roles or tool_calls.
-    # We override it with a template that handles the full function-calling
-    # conversation flow: developer (system) -> user -> assistant (with tool_calls)
-    # -> tool (response) -> assistant (final answer).
-    # This matches how Google's FunctionGemma tokenizer handles the Mobile Actions
-    # dataset format (developer + user + assistant w/ tool_calls).
-    FUNCTION_CALLING_CHAT_TEMPLATE = (
-        "{%- for message in messages -%}"
-        "{%- if message.role == 'developer' or message.role == 'system' -%}"
-        "<start_of_turn>developer\n"
-        "{{ message.content }}"
-        "{%- if tools is defined and tools|length > 0 %}\n\n"
-        "Available tools:"
-        "{%- for tool in tools %}\n"
-        "<start_function_declaration>"
-        "{%- if tool.function is defined %}"
-        "{{ tool.function | tojson }}"
-        "{%- else %}"
-        "{{ tool | tojson }}"
-        "{%- endif %}"
-        "<end_function_declaration>"
-        "{%- endfor %}"
-        "{%- endif %}"
-        "<end_of_turn>\n"
-        "{%- elif message.role == 'user' -%}"
-        "<start_of_turn>user\n"
-        "{{ message.content }}<end_of_turn>\n"
-        "{%- elif message.role == 'model' or message.role == 'assistant' -%}"
-        "<start_of_turn>model\n"
-        "{%- if message.tool_calls is defined and message.tool_calls -%}"
-        "{%- for tc in message.tool_calls -%}"
-        "<start_function_call>call:{{ tc.function.name }}{{ '{' }}"
-        "{%- for k, v in tc.function.arguments.items() -%}"
-        "{{ k }}:<escape>{{ v }}<escape>"
-        "{%- if not loop.last %},{% endif -%}"
-        "{%- endfor -%}"
-        "{{ '}' }}<end_function_call>"
-        "{%- endfor -%}"
-        "{%- else -%}"
-        "{{ message.content }}"
-        "{%- endif -%}"
-        "<end_of_turn>\n"
-        "{%- elif message.role == 'tool' -%}"
-        "<start_of_turn>tool\n"
-        "{{ message.content }}<end_of_turn>\n"
-        "{%- endif -%}"
-        "{%- endfor -%}"
-        "{%- if add_generation_prompt -%}"
-        "<start_of_turn>model\n"
-        "{%- endif -%}"
-    )
     tokenizer.chat_template = FUNCTION_CALLING_CHAT_TEMPLATE
     print("Overrode tokenizer chat template with function-calling template")
 
     # --- Load model ---
-    if args.use_4bit and not args.dry_run:
+    if args.use_4bit:
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
@@ -565,11 +209,9 @@ def main():
     else:
         model = AutoModelForCausalLM.from_pretrained(
             args.base_model,
-            device_map="auto" if not args.dry_run else None,
-            torch_dtype=torch.float32 if args.dry_run else torch.bfloat16,
+            device_map="auto",
+            torch_dtype=torch.bfloat16,
         )
-
-    # No embedding resize needed — we don't add special tokens (see above)
 
     # --- Apply LoRA ---
     lora_config = LoraConfig(
@@ -595,8 +237,8 @@ def main():
     if args.dataset == "google/mobile-actions":
         # Google's Mobile Actions dataset: JSONL where each line is a JSON object
         # with keys: metadata (train/eval), tools, messages
-        # This matches the format used in Google's FunctionGemma fine-tuning notebook
-        print(f"Loading Google Mobile Actions dataset...")
+        # Messages use roles: developer, user, assistant (with tool_calls)
+        print("Loading Google Mobile Actions dataset...")
         from huggingface_hub import hf_hub_download
         data_file = hf_hub_download(
             repo_id="google/mobile-actions",
@@ -670,57 +312,37 @@ def main():
         formatted_dataset = processed.filter(lambda x: x["split"] == "train")
         print(f"Training samples: {len(formatted_dataset)} (filtered from {len(processed)} total)")
 
-    elif args.dataset and args.dataset != "none":
+    else:
         print(f"Loading dataset: {args.dataset}")
         raw_dataset = load_dataset(args.dataset, split="train")
 
         def format_sample(sample):
-            return {"text": build_training_example(sample, tokenizer)}
+            """Format using apply_chat_template — expects 'messages' and 'tools' keys."""
+            messages = sample.get("messages", [])
+            tools = sample.get("tools", [])
+            text = tokenizer.apply_chat_template(
+                messages, tools=tools, tokenize=False, add_generation_prompt=False
+            )
+            return {"text": text}
 
         formatted_dataset = raw_dataset.map(format_sample)
         print(f"Training samples: {len(formatted_dataset)}")
 
-    else:
-        print("Using synthetic function-calling dataset for demo")
-        dataset = create_synthetic_dataset()
-
-        if args.dry_run:
-            # Dry run uses a simple chat template that doesn't support tools=
-            # Build training text directly to validate the pipeline mechanics
-            def format_sample_simple(sample):
-                user_msg = sample.get("user_prompt", "")
-                fc = sample.get("function_call", {})
-                call_str = f'{fc.get("name", "")}({json.dumps(fc.get("arguments", {}))})'
-                text = (
-                    f"<start_of_turn>user\n{user_msg}<end_of_turn>\n"
-                    f"<start_of_turn>model\n{call_str}<end_of_turn>\n"
-                )
-                return {"text": text}
-
-            formatted_dataset = dataset.map(format_sample_simple)
-        else:
-            def format_sample(sample):
-                return {"text": build_training_example(sample, tokenizer)}
-
-            formatted_dataset = dataset.map(format_sample)
-        print(f"Training samples: {len(formatted_dataset)}")
-
     # --- Training arguments ---
-    use_bf16 = torch.cuda.is_available() and not args.dry_run
+    use_bf16 = torch.cuda.is_available()
     training_args = SFTConfig(
         output_dir=args.output_dir,
         num_train_epochs=args.epochs,
         per_device_train_batch_size=args.batch_size,
-        gradient_accumulation_steps=1 if args.dry_run else 4,
+        gradient_accumulation_steps=4,
         learning_rate=args.learning_rate,
         weight_decay=0.01,
-        warmup_steps=2 if args.dry_run else 0,
-        warmup_ratio=0.0 if args.dry_run else 0.1,
+        warmup_ratio=0.1,
         lr_scheduler_type="cosine",
-        logging_steps=1 if args.dry_run else 10,
-        save_strategy="no" if args.dry_run else "epoch",
+        logging_steps=10,
+        save_strategy="epoch",
         bf16=use_bf16,
-        optim="paged_adamw_8bit" if (args.use_4bit and not args.dry_run) else "adamw_torch",
+        optim="paged_adamw_8bit" if args.use_4bit else "adamw_torch",
         max_grad_norm=0.3,
         max_length=args.max_seq_length,
         report_to="none",
@@ -751,7 +373,6 @@ def main():
             device_map="auto",
             torch_dtype=torch.bfloat16,
         )
-        # No embedding resize needed — we use plain text markers, not special tokens
         merged_model = PeftModel.from_pretrained(base_model, adapter_dir)
         merged_model = merged_model.merge_and_unload()
 
@@ -765,25 +386,6 @@ def main():
             merged_model.push_to_hub(args.hub_model_id)
             tokenizer.push_to_hub(args.hub_model_id)
             print("Push complete!")
-
-    if args.dry_run:
-        print("\n=== DRY RUN COMPLETE ===")
-        print("Full pipeline validated successfully:")
-        print("  - Model loading (Gemma architecture)")
-        print("  - Special token injection")
-        print("  - LoRA adapter application")
-        print("  - Dataset formatting with function-call tokens")
-        print("  - SFTTrainer training loop")
-        print("  - Adapter save/load")
-        # Clean up dry run artifacts
-        dry_run_dir = os.path.join(args.output_dir, "_dry_run_model")
-        if os.path.exists(dry_run_dir):
-            shutil.rmtree(dry_run_dir)
-            print(f"  - Cleaned up: {dry_run_dir}")
-        print()
-        print("To run for real with Gemma 3n:")
-        print(f"  python {__file__} --base_model google/gemma-3n-E2B-it")
-        return
 
     print("\n=== Next steps ===")
     print("1. Convert to .litertlm format using LiteRT-LM tools:")
