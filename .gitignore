@@ -43,6 +43,10 @@ gyp-mac-tool
 *.pt
 *.pth
 *.bin
+*.safetensors
+
+# Fine-tuning outputs
+gemma3n-function-calling/
 
 # IDE
 .vscode/
