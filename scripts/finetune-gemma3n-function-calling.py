@@ -37,6 +37,7 @@ import argparse
 import json
 import os
 import shutil
+import sys
 
 import torch
 from datasets import load_dataset, Dataset
@@ -497,6 +498,62 @@ def main():
     )
     print(f"Added {num_added} special tokens for function calling")
 
+    # --- Override chat template for function-calling support ---
+    # The default Gemma 3n tokenizer template enforces strict user/assistant
+    # alternation and doesn't support developer/tool roles or tool_calls.
+    # We override it with a template that handles the full function-calling
+    # conversation flow: developer (system) -> user -> assistant (with tool_calls)
+    # -> tool (response) -> assistant (final answer).
+    # This matches how Google's FunctionGemma tokenizer handles the Mobile Actions
+    # dataset format (developer + user + assistant w/ tool_calls).
+    FUNCTION_CALLING_CHAT_TEMPLATE = (
+        "{%- for message in messages -%}"
+        "{%- if message.role == 'developer' or message.role == 'system' -%}"
+        "<start_of_turn>developer\n"
+        "{{ message.content }}"
+        "{%- if tools is defined and tools|length > 0 %}\n\n"
+        "Available tools:"
+        "{%- for tool in tools %}\n"
+        "<start_function_declaration>"
+        "{%- if tool.function is defined %}"
+        "{{ tool.function | tojson }}"
+        "{%- else %}"
+        "{{ tool | tojson }}"
+        "{%- endif %}"
+        "<end_function_declaration>"
+        "{%- endfor %}"
+        "{%- endif %}"
+        "<end_of_turn>\n"
+        "{%- elif message.role == 'user' -%}"
+        "<start_of_turn>user\n"
+        "{{ message.content }}<end_of_turn>\n"
+        "{%- elif message.role == 'model' or message.role == 'assistant' -%}"
+        "<start_of_turn>model\n"
+        "{%- if message.tool_calls is defined and message.tool_calls -%}"
+        "{%- for tc in message.tool_calls -%}"
+        "<start_function_call>call:{{ tc.function.name }}{{ '{' }}"
+        "{%- for k, v in tc.function.arguments.items() -%}"
+        "{{ k }}:<escape>{{ v }}<escape>"
+        "{%- if not loop.last %},{% endif -%}"
+        "{%- endfor -%}"
+        "{{ '}' }}<end_function_call>"
+        "{%- endfor -%}"
+        "{%- else -%}"
+        "{{ message.content }}"
+        "{%- endif -%}"
+        "<end_of_turn>\n"
+        "{%- elif message.role == 'tool' -%}"
+        "<start_of_turn>tool\n"
+        "{{ message.content }}<end_of_turn>\n"
+        "{%- endif -%}"
+        "{%- endfor -%}"
+        "{%- if add_generation_prompt -%}"
+        "<start_of_turn>model\n"
+        "{%- endif -%}"
+    )
+    tokenizer.chat_template = FUNCTION_CALLING_CHAT_TEMPLATE
+    print("Overrode tokenizer chat template with function-calling template")
+
     # --- Load model ---
     if args.use_4bit and not args.dry_run:
         bnb_config = BitsAndBytesConfig(
@@ -555,35 +612,28 @@ def main():
         )
         raw_dataset = load_dataset("text", data_files=data_file, encoding="utf-8")["train"]
 
-        def merge_consecutive_roles(messages):
-            """Merge consecutive messages with the same role to satisfy Gemma3's
-            strict user/assistant alternation requirement."""
-            if not messages:
-                return messages
-            merged = [dict(messages[0])]
-            for msg in messages[1:]:
-                prev = merged[-1]
-                if msg["role"] == prev["role"]:
-                    # Merge content
-                    prev_content = prev.get("content") or ""
-                    new_content = msg.get("content") or ""
-                    if prev_content and new_content:
-                        prev["content"] = prev_content + "\n" + new_content
-                    elif new_content:
-                        prev["content"] = new_content
-                    # Merge tool_calls if present
-                    if "tool_calls" in msg:
-                        prev.setdefault("tool_calls", [])
-                        prev["tool_calls"].extend(msg["tool_calls"])
-                else:
-                    merged.append(dict(msg))
-            return merged
+        def prepare_messages(messages):
+            """Ensure tool_calls arguments are dicts (not JSON strings) for the
+            Jinja template, which needs to iterate over key-value pairs."""
+            prepared = []
+            for msg in messages:
+                msg = dict(msg)  # shallow copy
+                if msg.get("tool_calls"):
+                    fixed_calls = []
+                    for tc in msg["tool_calls"]:
+                        tc = dict(tc)
+                        fn = dict(tc.get("function", {}))
+                        if isinstance(fn.get("arguments"), str):
+                            fn["arguments"] = json.loads(fn["arguments"])
+                        tc["function"] = fn
+                        fixed_calls.append(tc)
+                    msg["tool_calls"] = fixed_calls
+                prepared.append(msg)
+            return prepared
 
         def apply_mobile_actions_format(sample):
             entry = json.loads(sample["text"])
-            messages = merge_consecutive_roles(entry["messages"])
-            # Use tokenizer.apply_chat_template with tools= param
-            # Full prompt+completion (for training)
+            messages = prepare_messages(entry["messages"])
             prompt_and_completion = tokenizer.apply_chat_template(
                 messages,
                 tools=entry["tools"],
@@ -594,6 +644,33 @@ def main():
                 "text": prompt_and_completion,
                 "split": entry.get("metadata", "train"),
             }
+
+        # --- Validate all samples before training ---
+        # Process every sample upfront so we catch template/format errors now,
+        # not hours into a training run.
+        print("Validating all samples against chat template...")
+        errors = []
+        for idx in range(len(raw_dataset)):
+            try:
+                entry = json.loads(raw_dataset[idx]["text"])
+                messages = prepare_messages(entry["messages"])
+                tokenizer.apply_chat_template(
+                    messages,
+                    tools=entry["tools"],
+                    tokenize=False,
+                    add_generation_prompt=False,
+                )
+            except Exception as e:
+                errors.append((idx, str(e)))
+                if len(errors) <= 5:
+                    roles = [m.get("role") for m in entry.get("messages", [])]
+                    print(f"  Sample {idx} FAILED: {e}")
+                    print(f"    Roles: {roles}")
+        if errors:
+            print(f"\nERROR: {len(errors)}/{len(raw_dataset)} samples failed template validation.")
+            print("Fix the chat template or data before training. Aborting.")
+            sys.exit(1)
+        print(f"All {len(raw_dataset)} samples passed template validation.")
 
         processed = raw_dataset.map(apply_mobile_actions_format)
         # Filter to training split only

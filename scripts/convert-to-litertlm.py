@@ -41,13 +41,6 @@ import sys
 # This template is embedded in the .litertlm metadata section so the
 # runtime knows how to format conversations with tool declarations.
 FUNCTION_CALLING_JINJA_TEMPLATE = r"""
-{%- set ns = namespace(found=false, tool_mode=false) -%}
-{%- for message in messages -%}
-  {%- if message.role == 'tool' -%}
-    {%- set ns.tool_mode = true -%}
-  {%- endif -%}
-{%- endfor -%}
-
 {%- for message in messages -%}
   {%- if message.role == 'developer' or message.role == 'system' -%}
 <start_of_turn>developer
@@ -71,7 +64,19 @@ Available tools:
 {{ message.content }}<end_of_turn>
   {%- elif message.role == 'model' or message.role == 'assistant' -%}
 <start_of_turn>model
-{{ message.content }}<end_of_turn>
+{%- if message.tool_calls is defined and message.tool_calls -%}
+{%- for tc in message.tool_calls -%}
+<start_function_call>call:{{ tc.function.name }}{{ '{' }}
+{%- for k, v in tc.function.arguments.items() -%}
+{{ k }}:<escape>{{ v }}<escape>
+{%- if not loop.last %},{% endif -%}
+{%- endfor -%}
+{{ '}' }}<end_function_call>
+{%- endfor -%}
+{%- else -%}
+{{ message.content }}
+{%- endif -%}
+<end_of_turn>
   {%- elif message.role == 'tool' -%}
 <start_of_turn>tool
 {{ message.content }}<end_of_turn>
