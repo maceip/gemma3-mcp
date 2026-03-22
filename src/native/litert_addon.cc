@@ -70,6 +70,7 @@ private:
   // Methods
   Napi::Value CreateConversation(const Napi::CallbackInfo& info);
   Napi::Value CreateConversationWithSystem(const Napi::CallbackInfo& info);
+  Napi::Value CreateConversationWithTools(const Napi::CallbackInfo& info);
   Napi::Value Destroy(const Napi::CallbackInfo& info);
 
   LiteRtLmEnginePtr engine_;
@@ -82,6 +83,7 @@ Napi::Object LiteRTEngine::Init(Napi::Env env, Napi::Object exports) {
   Napi::Function func = DefineClass(env, "LiteRTEngine", {
     InstanceMethod("createConversation", &LiteRTEngine::CreateConversation),
     InstanceMethod("createConversationWithSystem", &LiteRTEngine::CreateConversationWithSystem),
+    InstanceMethod("createConversationWithTools", &LiteRTEngine::CreateConversationWithTools),
     InstanceMethod("destroy", &LiteRTEngine::Destroy),
   });
 
@@ -197,6 +199,54 @@ Napi::Value LiteRTEngine::CreateConversationWithSystem(const Napi::CallbackInfo&
   }
 
   // Create and return conversation wrapper
+  Napi::External<void> external = Napi::External<void>::New(env, conversation);
+  return external;
+}
+
+Napi::Value LiteRTEngine::CreateConversationWithTools(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+
+  if (destroyed_ || engine_ == nullptr) {
+    Napi::Error::New(env, "Engine has been destroyed")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  if (info.Length() < 2) {
+    Napi::TypeError::New(env, "Expected 2 arguments: systemInstruction, toolsJson")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  // system_instruction can be null/undefined
+  const char* system_instruction = nullptr;
+  std::string system_str;
+  if (info[0].IsString()) {
+    system_str = info[0].As<Napi::String>().Utf8Value();
+    system_instruction = system_str.c_str();
+  }
+
+  if (!info[1].IsString()) {
+    Napi::TypeError::New(env, "toolsJson must be a string")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  std::string tools_json = info[1].As<Napi::String>().Utf8Value();
+
+  LiteRtLmConversationPtr conversation;
+  int status = LiteRtLmConversation_CreateWithTools(
+      engine_,
+      system_instruction,
+      tools_json.c_str(),
+      &conversation
+  );
+
+  if (status != LITERT_LM_OK) {
+    ThrowStatusError(env, status);
+    return env.Null();
+  }
+
   Napi::External<void> external = Napi::External<void>::New(env, conversation);
   return external;
 }
