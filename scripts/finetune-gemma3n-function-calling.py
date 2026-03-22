@@ -555,12 +555,37 @@ def main():
         )
         raw_dataset = load_dataset("text", data_files=data_file, encoding="utf-8")["train"]
 
+        def merge_consecutive_roles(messages):
+            """Merge consecutive messages with the same role to satisfy Gemma3's
+            strict user/assistant alternation requirement."""
+            if not messages:
+                return messages
+            merged = [dict(messages[0])]
+            for msg in messages[1:]:
+                prev = merged[-1]
+                if msg["role"] == prev["role"]:
+                    # Merge content
+                    prev_content = prev.get("content") or ""
+                    new_content = msg.get("content") or ""
+                    if prev_content and new_content:
+                        prev["content"] = prev_content + "\n" + new_content
+                    elif new_content:
+                        prev["content"] = new_content
+                    # Merge tool_calls if present
+                    if "tool_calls" in msg:
+                        prev.setdefault("tool_calls", [])
+                        prev["tool_calls"].extend(msg["tool_calls"])
+                else:
+                    merged.append(dict(msg))
+            return merged
+
         def apply_mobile_actions_format(sample):
             entry = json.loads(sample["text"])
+            messages = merge_consecutive_roles(entry["messages"])
             # Use tokenizer.apply_chat_template with tools= param
             # Full prompt+completion (for training)
             prompt_and_completion = tokenizer.apply_chat_template(
-                entry["messages"],
+                messages,
                 tools=entry["tools"],
                 tokenize=False,
                 add_generation_prompt=False,
