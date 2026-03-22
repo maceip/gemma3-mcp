@@ -15,12 +15,17 @@ The fine-tuned model uses the same special tokens as FunctionGemma:
   <start_function_call>call:function_name{param:<escape>value<escape>}<end_function_call>
 
 Usage:
-  pip install torch transformers peft trl datasets accelerate bitsandbytes
+  pip install torch transformers peft trl datasets accelerate bitsandbytes huggingface_hub
+  huggingface-cli login  # need access to gated Gemma 3n model
+
+  # Fine-tune on Google's Mobile Actions dataset (default)
   python scripts/finetune-gemma3n-function-calling.py \
     --base_model google/gemma-3n-E2B-it \
     --output_dir ./gemma3n-agent \
-    --dataset kontextdev/function-calling-data \
     --epochs 3
+
+  # Dry run (no HF auth needed, validates full pipeline)
+  python scripts/finetune-gemma3n-function-calling.py --dry_run
 
 References:
   - https://ai.google.dev/gemma/docs/mobile-actions
@@ -350,8 +355,8 @@ def main():
     parser.add_argument(
         "--dataset",
         type=str,
-        default=None,
-        help="HuggingFace dataset ID for training data (uses synthetic data if not provided)",
+        default="google/mobile-actions",
+        help="HuggingFace dataset ID (default: google/mobile-actions, use 'none' for synthetic data)",
     )
     parser.add_argument(
         "--epochs", type=int, default=3, help="Number of training epochs"
@@ -444,6 +449,7 @@ def main():
         )
         tokenizer.save_pretrained(dry_run_dir)
         args.base_model = dry_run_dir
+        args.dataset = "none"  # Use synthetic data for dry run
         print(f"Tiny Gemma model created at: {dry_run_dir}")
         print(f"  Config: {config.num_hidden_layers} layers, {config.hidden_size} hidden, {config.vocab_size} vocab")
         print()
@@ -516,19 +522,58 @@ def main():
     model.print_trainable_parameters()
 
     # --- Load dataset ---
-    if args.dataset:
+    if args.dataset == "google/mobile-actions":
+        # Google's Mobile Actions dataset: JSONL where each line is a JSON object
+        # with keys: metadata (train/eval), tools, messages
+        # This matches the format used in Google's FunctionGemma fine-tuning notebook
+        print(f"Loading Google Mobile Actions dataset...")
+        from huggingface_hub import hf_hub_download
+        data_file = hf_hub_download(
+            repo_id="google/mobile-actions",
+            filename="dataset.jsonl",
+            repo_type="dataset",
+        )
+        raw_dataset = load_dataset("text", data_files=data_file, encoding="utf-8")["train"]
+
+        def apply_mobile_actions_format(sample):
+            entry = json.loads(sample["text"])
+            # Use tokenizer.apply_chat_template with tools= param
+            # Full prompt+completion (for training)
+            prompt_and_completion = tokenizer.apply_chat_template(
+                entry["messages"],
+                tools=entry["tools"],
+                tokenize=False,
+                add_generation_prompt=False,
+            )
+            return {
+                "text": prompt_and_completion,
+                "split": entry.get("metadata", "train"),
+            }
+
+        processed = raw_dataset.map(apply_mobile_actions_format)
+        # Filter to training split only
+        formatted_dataset = processed.filter(lambda x: x["split"] == "train")
+        print(f"Training samples: {len(formatted_dataset)} (filtered from {len(processed)} total)")
+
+    elif args.dataset and args.dataset != "none":
         print(f"Loading dataset: {args.dataset}")
-        dataset = load_dataset(args.dataset, split="train")
+        raw_dataset = load_dataset(args.dataset, split="train")
+
+        def format_sample(sample):
+            return {"text": build_training_example(sample, tokenizer)}
+
+        formatted_dataset = raw_dataset.map(format_sample)
+        print(f"Training samples: {len(formatted_dataset)}")
+
     else:
         print("Using synthetic function-calling dataset for demo")
         dataset = create_synthetic_dataset()
 
-    # --- Format dataset ---
-    def format_sample(sample):
-        return {"text": build_training_example(sample, tokenizer)}
+        def format_sample(sample):
+            return {"text": build_training_example(sample, tokenizer)}
 
-    formatted_dataset = dataset.map(format_sample)
-    print(f"Training samples: {len(formatted_dataset)}")
+        formatted_dataset = dataset.map(format_sample)
+        print(f"Training samples: {len(formatted_dataset)}")
 
     # --- Training arguments ---
     use_bf16 = torch.cuda.is_available() and not args.dry_run
