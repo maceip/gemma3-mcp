@@ -194,11 +194,15 @@ def main():
 
     # --- Load model ---
     if args.use_4bit:
+        # Skip AltUp layers from quantization — their predict() and correct()
+        # methods call clamp_() in-place on weights during training, which
+        # fails on 4-bit quantized uint8 tensors.
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
             bnb_4bit_compute_dtype=torch.bfloat16,
             bnb_4bit_use_double_quant=True,
+            llm_int8_skip_modules=["prediction_coefs", "correction_coefs", "modality_router"],
         )
         model = AutoModelForCausalLM.from_pretrained(
             args.base_model,
