@@ -105,7 +105,12 @@ def build_training_example(sample: dict, tokenizer) -> str:
     """
     Convert a function-calling training sample into a formatted prompt.
 
-    Expected sample format (Mobile Actions style):
+    Uses the same approach as Google's Mobile Actions notebook:
+    tokenizer.apply_chat_template(messages, tools=tools) with proper
+    tool_calls in the assistant message. This ensures compatibility with
+    Gemma 3n's strict role alternation requirements.
+
+    Expected sample format:
     {
         "tools": [...],              # Tool/function declarations
         "system_prompt": "...",      # Optional system context
@@ -118,44 +123,59 @@ def build_training_example(sample: dict, tokenizer) -> str:
         "assistant_response": "..."  # Final natural language response (optional)
     }
     """
-    tools = sample.get("tools", [])
+    raw_tools = sample.get("tools", [])
     system_prompt = sample.get("system_prompt", "")
     user_prompt = sample.get("user_prompt", "")
     function_call = sample.get("function_call", {})
     function_response = sample.get("function_response", None)
     assistant_response = sample.get("assistant_response", None)
 
-    # Build the conversation
-    tool_declarations = format_tool_declarations(tools)
+    # Wrap tools in {"function": ...} format expected by apply_chat_template
+    tools = []
+    for t in raw_tools:
+        if "function" in t:
+            tools.append(t)
+        else:
+            tools.append({"function": t})
 
-    system_content = SYSTEM_TEMPLATE.format(tool_declarations=tool_declarations)
+    # Build messages in the format Gemma's chat template expects
+    messages = []
+
+    # System prompt goes in a "user" prefixed message (Gemma merges it)
     if system_prompt:
-        system_content += f"\n\nContext: {system_prompt}"
+        messages.append({"role": "user", "content": f"{system_prompt}\n\n{user_prompt}"})
+    else:
+        messages.append({"role": "user", "content": user_prompt})
 
-    messages = [
-        {"role": "developer", "content": system_content},
-        {"role": "user", "content": user_prompt},
-    ]
-
-    # The model should output the function call
-    call_text = format_function_call(
-        function_call["name"], function_call.get("arguments", {})
-    )
-    messages.append({"role": "model", "content": call_text})
+    # Assistant turn with tool_calls (matches Mobile Actions format)
+    fc_name = function_call.get("name", "")
+    fc_args = function_call.get("arguments", {})
+    messages.append({
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [{
+            "id": "call_0",
+            "type": "function",
+            "function": {
+                "name": fc_name,
+                "arguments": json.dumps(fc_args),
+            },
+        }],
+    })
 
     # If there's a function response and final answer, include them
     if function_response is not None:
-        response_text = format_function_response(
-            function_call["name"], function_response
-        )
-        messages.append({"role": "tool", "content": response_text})
-
+        messages.append({
+            "role": "tool",
+            "content": json.dumps(function_response),
+            "tool_call_id": "call_0",
+        })
         if assistant_response:
-            messages.append({"role": "model", "content": assistant_response})
+            messages.append({"role": "assistant", "content": assistant_response})
 
-    # Apply chat template
+    # Apply chat template with tools= parameter (activates tool-calling path)
     text = tokenizer.apply_chat_template(
-        messages, tokenize=False, add_generation_prompt=False
+        messages, tools=tools, tokenize=False, add_generation_prompt=False
     )
     return text
 
@@ -569,10 +589,25 @@ def main():
         print("Using synthetic function-calling dataset for demo")
         dataset = create_synthetic_dataset()
 
-        def format_sample(sample):
-            return {"text": build_training_example(sample, tokenizer)}
+        if args.dry_run:
+            # Dry run uses a simple chat template that doesn't support tools=
+            # Build training text directly to validate the pipeline mechanics
+            def format_sample_simple(sample):
+                user_msg = sample.get("user_prompt", "")
+                fc = sample.get("function_call", {})
+                call_str = f'{fc.get("name", "")}({json.dumps(fc.get("arguments", {}))})'
+                text = (
+                    f"<start_of_turn>user\n{user_msg}<end_of_turn>\n"
+                    f"<start_of_turn>model\n{call_str}<end_of_turn>\n"
+                )
+                return {"text": text}
 
-        formatted_dataset = dataset.map(format_sample)
+            formatted_dataset = dataset.map(format_sample_simple)
+        else:
+            def format_sample(sample):
+                return {"text": build_training_example(sample, tokenizer)}
+
+            formatted_dataset = dataset.map(format_sample)
         print(f"Training samples: {len(formatted_dataset)}")
 
     # --- Training arguments ---
