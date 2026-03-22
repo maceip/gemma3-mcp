@@ -31,6 +31,7 @@ References:
 import argparse
 import json
 import os
+import shutil
 
 import torch
 from datasets import load_dataset, Dataset
@@ -40,9 +41,10 @@ from transformers import (
     AutoProcessor,
     AutoTokenizer,
     BitsAndBytesConfig,
-    TrainingArguments,
+    GemmaConfig,
+    GemmaForCausalLM,
 )
-from trl import SFTTrainer
+from trl import SFTConfig, SFTTrainer
 
 
 # =============================================================================
@@ -386,7 +388,65 @@ def main():
         default=None,
         help="HuggingFace Hub model ID for pushing (e.g. kontextdev/agent-gemma)",
     )
+    parser.add_argument(
+        "--dry_run",
+        action="store_true",
+        help="Run full pipeline with a tiny local Gemma-architecture model (no HF auth needed)",
+    )
     args = parser.parse_args()
+
+    # --- Dry run: create a tiny Gemma-architecture model locally ---
+    if args.dry_run:
+        print("=== DRY RUN MODE ===")
+        print("Creating tiny Gemma-architecture model for pipeline validation...")
+        args.use_4bit = False  # 4-bit not needed for tiny model
+        args.epochs = 1
+        args.batch_size = 2
+        args.max_seq_length = 256
+        args.lora_r = 4
+        args.lora_alpha = 8
+
+        dry_run_dir = os.path.join(args.output_dir, "_dry_run_model")
+        os.makedirs(dry_run_dir, exist_ok=True)
+
+        # Create a minimal Gemma config (same architecture, tiny dimensions)
+        config = GemmaConfig(
+            vocab_size=32000,
+            hidden_size=64,
+            intermediate_size=128,
+            num_hidden_layers=2,
+            num_attention_heads=4,
+            num_key_value_heads=2,
+            head_dim=16,
+            max_position_embeddings=512,
+        )
+        tiny_model = GemmaForCausalLM(config)
+        tiny_model.save_pretrained(dry_run_dir)
+
+        # Create a minimal tokenizer from the Gemma template
+        from transformers import GemmaTokenizerFast
+        # Use a pre-trained tokenizer that's publicly accessible as template
+        # Fall back to a basic tokenizer if needed
+        try:
+            tokenizer = AutoTokenizer.from_pretrained("HuggingFaceTB/SmolLM2-135M-Instruct")
+        except Exception:
+            from transformers import PreTrainedTokenizerFast
+            tokenizer = PreTrainedTokenizerFast.from_pretrained("gpt2")
+            tokenizer.pad_token = tokenizer.eos_token
+
+        # Set Gemma-style chat template
+        tokenizer.chat_template = (
+            "{% for message in messages %}"
+            "<start_of_turn>{{ message.role }}\n"
+            "{{ message.content }}<end_of_turn>\n"
+            "{% endfor %}"
+            "{% if add_generation_prompt %}<start_of_turn>model\n{% endif %}"
+        )
+        tokenizer.save_pretrained(dry_run_dir)
+        args.base_model = dry_run_dir
+        print(f"Tiny Gemma model created at: {dry_run_dir}")
+        print(f"  Config: {config.num_hidden_layers} layers, {config.hidden_size} hidden, {config.vocab_size} vocab")
+        print()
 
     print(f"Base model: {args.base_model}")
     print(f"Output dir: {args.output_dir}")
@@ -412,7 +472,7 @@ def main():
     print(f"Added {num_added} special tokens for function calling")
 
     # --- Load model ---
-    if args.use_4bit:
+    if args.use_4bit and not args.dry_run:
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
@@ -428,8 +488,8 @@ def main():
     else:
         model = AutoModelForCausalLM.from_pretrained(
             args.base_model,
-            device_map="auto",
-            torch_dtype=torch.bfloat16,
+            device_map="auto" if not args.dry_run else None,
+            torch_dtype=torch.float32 if args.dry_run else torch.bfloat16,
         )
 
     # Resize embeddings for new special tokens
@@ -471,20 +531,23 @@ def main():
     print(f"Training samples: {len(formatted_dataset)}")
 
     # --- Training arguments ---
-    training_args = TrainingArguments(
+    use_bf16 = torch.cuda.is_available() and not args.dry_run
+    training_args = SFTConfig(
         output_dir=args.output_dir,
         num_train_epochs=args.epochs,
         per_device_train_batch_size=args.batch_size,
-        gradient_accumulation_steps=4,
+        gradient_accumulation_steps=1 if args.dry_run else 4,
         learning_rate=args.learning_rate,
         weight_decay=0.01,
-        warmup_ratio=0.1,
+        warmup_steps=2 if args.dry_run else 0,
+        warmup_ratio=0.0 if args.dry_run else 0.1,
         lr_scheduler_type="cosine",
-        logging_steps=10,
-        save_strategy="epoch",
-        bf16=True,
-        optim="paged_adamw_8bit" if args.use_4bit else "adamw_torch",
+        logging_steps=1 if args.dry_run else 10,
+        save_strategy="no" if args.dry_run else "epoch",
+        bf16=use_bf16,
+        optim="paged_adamw_8bit" if (args.use_4bit and not args.dry_run) else "adamw_torch",
         max_grad_norm=0.3,
+        max_length=args.max_seq_length,
         report_to="none",
     )
 
@@ -494,7 +557,6 @@ def main():
         args=training_args,
         train_dataset=formatted_dataset,
         processing_class=tokenizer,
-        max_seq_length=args.max_seq_length,
     )
 
     print("Starting training...")
@@ -528,6 +590,25 @@ def main():
             merged_model.push_to_hub(args.hub_model_id)
             tokenizer.push_to_hub(args.hub_model_id)
             print("Push complete!")
+
+    if args.dry_run:
+        print("\n=== DRY RUN COMPLETE ===")
+        print("Full pipeline validated successfully:")
+        print("  - Model loading (Gemma architecture)")
+        print("  - Special token injection")
+        print("  - LoRA adapter application")
+        print("  - Dataset formatting with function-call tokens")
+        print("  - SFTTrainer training loop")
+        print("  - Adapter save/load")
+        # Clean up dry run artifacts
+        dry_run_dir = os.path.join(args.output_dir, "_dry_run_model")
+        if os.path.exists(dry_run_dir):
+            shutil.rmtree(dry_run_dir)
+            print(f"  - Cleaned up: {dry_run_dir}")
+        print()
+        print("To run for real with Gemma 3n:")
+        print(f"  python {__file__} --base_model google/gemma-3n-E2B-it")
+        return
 
     print("\n=== Next steps ===")
     print("1. Convert to .litertlm format using LiteRT-LM tools:")
