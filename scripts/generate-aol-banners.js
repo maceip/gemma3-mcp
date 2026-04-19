@@ -1,6 +1,18 @@
-// Render BOUNTYNET in each AOL "unadjusted" font.
-// Detect unfixed fonts via the T vs TTTTT heuristic, then apply a
-// kerning/padding fix when the last T doesn't match the first T.
+// Render BOUNTYNET in each AOL "unadjusted" font, then smush adjacent
+// glyphs together by as many columns as possible without colliding.
+//
+// Strategy:
+//   1. Render each character independently via figlet, preserving each
+//      glyph's full .flf width (including author-authored padding).
+//   2. Pad every glyph to the same height.
+//   3. For each adjacent pair, find the maximum N where overlapping
+//      glyph[i] by N columns onto glyph[i+1] never puts two non-space
+//      characters in the same cell. Apply that overlap.
+//
+// This tightens the banner back toward figlet's default layout while
+// avoiding the collisions that default smushing causes on AOL macro
+// fonts (whose per-glyph padding is hand-tuned for proportional Arial,
+// not figlet's smushing rules).
 
 const fs = require("fs");
 const path = require("path");
@@ -18,126 +30,100 @@ const FONTS = [
   "Twiggy","X-Pose","X99","X992",
 ];
 
-// Load each font file into figlet under its base name.
-for (const name of FONTS) {
-  const p = path.join(FONT_DIR, `${name}.flf`);
-  const flf = fs.readFileSync(p, "utf8");
-  figlet.parseFont(name, flf);
+for (const n of FONTS) {
+  figlet.parseFont(n, fs.readFileSync(path.join(FONT_DIR, `${n}.flf`), "utf8"));
 }
 
-// Helpers -----------------------------------------------------------
-const render = (text, font, opts = {}) =>
-  figlet.textSync(text, { font, ...opts });
-
-// Trim surrounding blank rows (top + bottom) and blank left/right cols
-// so we can compare glyph shapes without whitespace drift.
-function trim(block) {
-  let rows = block.split("\n");
-  while (rows.length && rows[0].trim() === "") rows.shift();
-  while (rows.length && rows[rows.length - 1].trim() === "") rows.pop();
-  if (!rows.length) return "";
-  const width = Math.max(...rows.map(r => r.length));
-  rows = rows.map(r => r.padEnd(width, " "));
-  let left = 0, right = width;
-  outer: while (left < right) {
-    for (const r of rows) if (r[left] !== " ") break outer;
-    left++;
-  }
-  outer: while (right > left) {
-    for (const r of rows) if (r[right - 1] !== " ") break outer;
-    right--;
-  }
-  return rows.map(r => r.slice(left, right)).join("\n");
+function renderGlyph(ch, font) {
+  if (ch === " ") return ["  ", "  "];
+  return figlet.textSync(ch, { font }).split("\n");
 }
 
-// Slice out a single glyph column-range from a rendered block.
-function sliceCols(block, start, end) {
-  return block.split("\n").map(r => r.slice(start, end)).join("\n");
-}
-
-// Extract the 1st and last "T" from TTTTT by column-partitioning into 5.
-function splitFive(block) {
-  const rows = block.split("\n");
+function padBlock(rows, height) {
+  while (rows.length < height) rows.push("");
   const w = Math.max(...rows.map(r => r.length));
-  const padded = rows.map(r => r.padEnd(w, " "));
-  const step = w / 5;
-  const cuts = [];
-  for (let i = 0; i < 5; i++) {
-    const s = Math.round(i * step), e = Math.round((i + 1) * step);
-    cuts.push(padded.map(r => r.slice(s, e)).join("\n"));
-  }
-  return cuts;
+  return rows.map(r => r.padEnd(w, " "));
 }
 
-// Detect whether the font is "unfixed": first T and last T of TTTTT differ.
-function isUnfixed(font) {
-  try {
-    const single = trim(render("T", font));
-    const many   = trim(render("TTTTT", font));
-    const parts  = splitFive(many).map(trim);
-    const first  = parts[0];
-    const last   = parts[parts.length - 1];
-    return { unfixed: first !== last, single, many, first, last };
-  } catch (e) {
-    return { unfixed: null, error: e.message };
+// Can we overlap `right` onto `left` by `n` columns without any row
+// having two non-space characters in the same cell?
+function canOverlap(left, right, n) {
+  if (n <= 0) return true;
+  const lw = left[0].length, rw = right[0].length;
+  if (n > lw || n > rw) return false;
+  for (let r = 0; r < left.length; r++) {
+    const lTail = left[r].slice(lw - n);
+    const rHead = right[r].slice(0, n);
+    for (let c = 0; c < n; c++) {
+      if (lTail[c] !== " " && rHead[c] !== " ") return false;
+    }
   }
+  return true;
 }
 
-// Render each character on its own, then concatenate the rows. AOL
-// macro fonts bake their own inter-letter padding into each glyph, so
-// rendering char-by-char and directly rejoining (no gutter, no
-// smushing) keeps that padding intact instead of letting figlet's
-// multi-char layout collapse it.
-function renderFixed(text, font) {
-  const glyphs = [...text].map(ch => {
-    if (ch === " ") return ["    "];
-    return render(ch, font).split("\n");
-  });
+// Merge two equal-height blocks with given overlap; in the overlap
+// region, whichever side has a non-space char wins (at most one side
+// does, by construction).
+function mergeBlocks(left, right, n) {
+  const lw = left[0].length, rw = right[0].length;
+  const out = [];
+  for (let r = 0; r < left.length; r++) {
+    const lHead = left[r].slice(0, lw - n);
+    const lTail = left[r].slice(lw - n);
+    const rHead = right[r].slice(0, n);
+    const rTail = right[r].slice(n);
+    let mid = "";
+    for (let c = 0; c < n; c++) {
+      mid += lTail[c] !== " " ? lTail[c] : rHead[c];
+    }
+    out.push(lHead + mid + rTail);
+  }
+  return out;
+}
+
+function smush(text, font) {
+  const glyphs = [...text].map(ch => renderGlyph(ch, font));
   const height = Math.max(...glyphs.map(g => g.length));
-  for (const g of glyphs) {
-    while (g.length < height) g.push("");
-    const w = Math.max(...g.map(r => r.length));
-    for (let i = 0; i < g.length; i++) g[i] = g[i].padEnd(w, " ");
+  const blocks = glyphs.map(g => padBlock(g.slice(), height));
+  let acc = blocks[0];
+  for (let i = 1; i < blocks.length; i++) {
+    const next = blocks[i];
+    const maxN = Math.min(acc[0].length, next[0].length);
+    let n = maxN;
+    while (n > 0 && !canOverlap(acc, next, n)) n--;
+    acc = mergeBlocks(acc, next, n);
   }
-  const rows = [];
-  for (let r = 0; r < height; r++) {
-    rows.push(glyphs.map(g => g[r]).join(""));
-  }
-  return rows.join("\n");
+  return acc.join("\n");
 }
 
-// Main --------------------------------------------------------------
-const indexLines = [];
-indexLines.push("# AOL Macro Fonts (unadjusted) — BOUNTYNET banners");
-indexLines.push("");
-indexLines.push("Source: fonts downloaded from https://patorjk.com/software/taag/");
-indexLines.push("");
-indexLines.push("Each banner is produced by rendering every character of BOUNTYNET");
-indexLines.push("independently with figlet, then concatenating the rows directly.");
-indexLines.push("That preserves the per-glyph padding the AOL macro fonts bake into");
-indexLines.push("their .flf files, which figlet's multi-char layout otherwise eats.");
-indexLines.push("The T-vs-TTTTT column notes whether figlet's default layout already");
-indexLines.push("produced matching first/last T's (i.e. whether the font needed this");
-indexLines.push("treatment at all).");
-indexLines.push("");
-indexLines.push("| Font | Needed per-glyph rejoin? |");
-indexLines.push("|------|--------------------------|");
+// Diagnostic: is the font unfixed by the T-vs-TTTTT heuristic?
+function tTest(font) {
+  const oneBlock = smush("T", font).split("\n");
+  const manyBlock = smush("TTTTT", font).split("\n");
+  const one = oneBlock.map(r => r.trimEnd()).join("\n").trim();
+  const many = manyBlock.join("\n");
+  // Slice the T-block width out of the many-block first and last positions.
+  const w = Math.max(...oneBlock.map(r => r.length));
+  const totalW = Math.max(...manyBlock.map(r => r.length));
+  const first = manyBlock.map(r => r.slice(0, w)).join("\n").trim();
+  const last  = manyBlock.map(r => r.slice(totalW - w)).join("\n").trim();
+  return first !== last;
+}
+
+const idx = ["# AOL Macro Fonts (unadjusted) — BOUNTYNET banners", "",
+  "Each char rendered alone then smushed onto its neighbor by the",
+  "maximum column count that causes no ink-on-ink collision. Tightens",
+  "spacing without the glyph breakage figlet's default smushing causes.",
+  "", "| Font | T-check differs? |", "|------|------------------|"];
 
 for (const font of FONTS) {
-  const status = isUnfixed(font);
-  const banner = renderFixed("BOUNTYNET", font);
+  const banner = smush("BOUNTYNET", font);
+  const diff   = tTest(font);
   const safe   = font.replace(/[^\w.-]+/g, "_");
-
-  const out = [];
-  out.push(`Font: ${font}`);
-  out.push(`Needed per-glyph rejoin: ${status.unfixed === true ? "yes" : status.unfixed === false ? "no" : "error"}`);
-  out.push("");
-  out.push(banner);
-  fs.writeFileSync(path.join(OUT_DIR, `${safe}.txt`), out.join("\n") + "\n");
-
-  indexLines.push(`| ${font} | ${status.unfixed ? "yes" : "no"} |`);
-  console.log(`${status.unfixed ? "rejoin " : "clean  "}  ${font}`);
+  fs.writeFileSync(path.join(OUT_DIR, `${safe}.txt`),
+    `Font: ${font}\nT-check differs: ${diff ? "yes" : "no"}\n\n${banner}\n`);
+  idx.push(`| ${font} | ${diff ? "yes" : "no"} |`);
+  console.log(`${diff ? "diff " : "ok   "}  ${font}`);
 }
-
-fs.writeFileSync(path.join(OUT_DIR, "README.md"), indexLines.join("\n") + "\n");
+fs.writeFileSync(path.join(OUT_DIR, "README.md"), idx.join("\n") + "\n");
 console.log(`\nWrote ${FONTS.length} files to ${OUT_DIR}`);

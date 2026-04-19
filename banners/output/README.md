@@ -1,17 +1,11 @@
 # AOL Macro Fonts (unadjusted) — BOUNTYNET banners
 
-Source: fonts downloaded from https://patorjk.com/software/taag/
+Each char rendered alone then smushed onto its neighbor by the
+maximum column count that causes no ink-on-ink collision. Tightens
+spacing without the glyph breakage figlet's default smushing causes.
 
-Each banner is produced by rendering every character of BOUNTYNET
-independently with figlet, then concatenating the rows directly.
-That preserves the per-glyph padding the AOL macro fonts bake into
-their .flf files, which figlet's multi-char layout otherwise eats.
-The T-vs-TTTTT column notes whether figlet's default layout already
-produced matching first/last T's (i.e. whether the font needed this
-treatment at all).
-
-| Font | Needed per-glyph rejoin? |
-|------|--------------------------|
+| Font | T-check differs? |
+|------|------------------|
 | Abraxis-Small | yes |
 | Bent | yes |
 | Blest | yes |
@@ -19,7 +13,7 @@ treatment at all).
 | Boie2 | yes |
 | Bone's Font | yes |
 | CaMiZ | yes |
-| CeA | no |
+| CeA | yes |
 | CeA2 | yes |
 | Cheese | yes |
 | DaiR | yes |
@@ -31,15 +25,15 @@ treatment at all).
 | Hellfire | yes |
 | MeDi | yes |
 | Mer | yes |
-| PsY | yes |
+| PsY | no |
 | PsY2 | yes |
 | Ribbit | yes |
-| Ribbit2 | yes |
+| Ribbit2 | no |
 | Ribbit3 | yes |
 | Sony | yes |
 | TRaC Mini | yes |
 | TRaC Tiny | yes |
 | Twiggy | yes |
-| X-Pose | yes |
+| X-Pose | no |
 | X99 | yes |
 | X992 | yes |
