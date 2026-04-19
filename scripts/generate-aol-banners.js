@@ -83,20 +83,15 @@ function isUnfixed(font) {
   }
 }
 
-// Fix strategy: render each character independently then concatenate
-// horizontally. AOL macro fonts are hand-kerned for rendering in Arial
-// in the AIM chat window; figlet's layout assumes monospace, which is
-// what breaks multi-letter strings. Per-char rendering + a one-space
-// gutter gives the closest match to how these fonts were designed to
-// look in chat.
-function renderFixed(text, font, gutter = " ") {
+// Render each character on its own, then concatenate the rows. AOL
+// macro fonts bake their own inter-letter padding into each glyph, so
+// rendering char-by-char and directly rejoining (no gutter, no
+// smushing) keeps that padding intact instead of letting figlet's
+// multi-char layout collapse it.
+function renderFixed(text, font) {
   const glyphs = [...text].map(ch => {
-    const block = ch === " " ? "  \n  " : render(ch, font);
-    // keep full height, trim only blank top/bottom rows
-    let rows = block.split("\n");
-    while (rows.length && rows[0].trim() === "") rows.shift();
-    while (rows.length && rows[rows.length - 1].trim() === "") rows.pop();
-    return rows;
+    if (ch === " ") return ["    "];
+    return render(ch, font).split("\n");
   });
   const height = Math.max(...glyphs.map(g => g.length));
   for (const g of glyphs) {
@@ -106,7 +101,7 @@ function renderFixed(text, font, gutter = " ") {
   }
   const rows = [];
   for (let r = 0; r < height; r++) {
-    rows.push(glyphs.map(g => g[r]).join(gutter));
+    rows.push(glyphs.map(g => g[r]).join(""));
   }
   return rows.join("\n");
 }
@@ -117,43 +112,31 @@ indexLines.push("# AOL Macro Fonts (unadjusted) — BOUNTYNET banners");
 indexLines.push("");
 indexLines.push("Source: fonts downloaded from https://patorjk.com/software/taag/");
 indexLines.push("");
-indexLines.push("Every font in this category is hand-kerned for AIM's Arial chat");
-indexLines.push("window rather than figlet's monospace layout, so the default");
-indexLines.push("textSync output glues letters together. The T-vs-TTTTT check");
-indexLines.push("compares the first and last `T` from rendering `TTTTT`; if they");
-indexLines.push("differ the font is flagged unfixed, and we fall back to per-");
-indexLines.push("character rendering with a one-space gutter.");
+indexLines.push("Each banner is produced by rendering every character of BOUNTYNET");
+indexLines.push("independently with figlet, then concatenating the rows directly.");
+indexLines.push("That preserves the per-glyph padding the AOL macro fonts bake into");
+indexLines.push("their .flf files, which figlet's multi-char layout otherwise eats.");
+indexLines.push("The T-vs-TTTTT column notes whether figlet's default layout already");
+indexLines.push("produced matching first/last T's (i.e. whether the font needed this");
+indexLines.push("treatment at all).");
 indexLines.push("");
-indexLines.push("| Font | Unfixed? |");
-indexLines.push("|------|----------|");
+indexLines.push("| Font | Needed per-glyph rejoin? |");
+indexLines.push("|------|--------------------------|");
 
 for (const font of FONTS) {
   const status = isUnfixed(font);
-  const raw    = render("BOUNTYNET", font);
-  const fixed  = status.unfixed ? renderFixed("BOUNTYNET", font) : raw;
+  const banner = renderFixed("BOUNTYNET", font);
   const safe   = font.replace(/[^\w.-]+/g, "_");
 
   const out = [];
   out.push(`Font: ${font}`);
-  out.push(`Unfixed: ${status.unfixed === true ? "yes" : status.unfixed === false ? "no" : "error"}`);
+  out.push(`Needed per-glyph rejoin: ${status.unfixed === true ? "yes" : status.unfixed === false ? "no" : "error"}`);
   out.push("");
-  out.push("--- T (single) ---");
-  out.push(status.single || "");
-  out.push("");
-  out.push("--- TTTTT (five) ---");
-  out.push(status.many || "");
-  out.push("");
-  out.push("--- BOUNTYNET (default figlet layout) ---");
-  out.push(raw);
-  if (status.unfixed) {
-    out.push("");
-    out.push("--- BOUNTYNET (fixed: per-char + 1-space gutter) ---");
-    out.push(fixed);
-  }
+  out.push(banner);
   fs.writeFileSync(path.join(OUT_DIR, `${safe}.txt`), out.join("\n") + "\n");
 
   indexLines.push(`| ${font} | ${status.unfixed ? "yes" : "no"} |`);
-  console.log(`${status.unfixed ? "UNFIXED" : "ok     "}  ${font}`);
+  console.log(`${status.unfixed ? "rejoin " : "clean  "}  ${font}`);
 }
 
 fs.writeFileSync(path.join(OUT_DIR, "README.md"), indexLines.join("\n") + "\n");

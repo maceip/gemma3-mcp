@@ -2,15 +2,16 @@
 
 Source: fonts downloaded from https://patorjk.com/software/taag/
 
-Every font in this category is hand-kerned for AIM's Arial chat
-window rather than figlet's monospace layout, so the default
-textSync output glues letters together. The T-vs-TTTTT check
-compares the first and last `T` from rendering `TTTTT`; if they
-differ the font is flagged unfixed, and we fall back to per-
-character rendering with a one-space gutter.
+Each banner is produced by rendering every character of BOUNTYNET
+independently with figlet, then concatenating the rows directly.
+That preserves the per-glyph padding the AOL macro fonts bake into
+their .flf files, which figlet's multi-char layout otherwise eats.
+The T-vs-TTTTT column notes whether figlet's default layout already
+produced matching first/last T's (i.e. whether the font needed this
+treatment at all).
 
-| Font | Unfixed? |
-|------|----------|
+| Font | Needed per-glyph rejoin? |
+|------|--------------------------|
 | Abraxis-Small | yes |
 | Bent | yes |
 | Blest | yes |
