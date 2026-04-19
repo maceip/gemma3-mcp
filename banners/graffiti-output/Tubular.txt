@@ -1,0 +1,11 @@
+Font: Tubular
+Height: 8
+
+O~~ O~~       O~~~~     O~~     O~~O~~~     O~~O~~~ O~~~~~~O~~      O~~O~~~     O~~O~~~~~~~~O~~~ O~~~~~~
+O~    O~~   O~~    O~~  O~~     O~~O~ O~~   O~~     O~~     O~~    O~~ O~ O~~   O~~O~~           O~~    
+O~     O~~O~~        O~~O~~     O~~O~~ O~~  O~~     O~~      O~~ O~~   O~~ O~~  O~~O~~           O~~    
+O~~~ O~   O~~        O~~O~~     O~~O~~  O~~ O~~     O~~        O~~     O~~  O~~ O~~O~~~~~~       O~~    
+O~     O~~O~~        O~~O~~     O~~O~~   O~ O~~     O~~        O~~     O~~   O~ O~~O~~           O~~    
+O~      O~  O~~     O~~ O~~     O~~O~~    O~ ~~     O~~        O~~     O~~    O~ ~~O~~           O~~    
+O~~~~ O~~     O~~~~       O~~~~~   O~~      O~~     O~~        O~~     O~~      O~~O~~~~~~~~     O~~    
+                                                                                                        

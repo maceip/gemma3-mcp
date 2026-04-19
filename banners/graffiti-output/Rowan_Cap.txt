@@ -1,0 +1,9 @@
+Font: Rowan Cap
+Height: 6
+
+    dMMMMb .aMMMb dMP dMPdMMMMbdMMMMMMPdMP dMPdMMMMb dMMMMMPdMMMMMMP
+   dMP"dMPdMP"dMPdMP dMPdMP dMP  dMP  dMP.dMPdMP dMPdMP       dMP   
+  dMMMMK"dMP dMPdMP dMPdMP dMP  dMP   VMMMMPdMP dMPdMMMP     dMP    
+ dMP.aMFdMP.aMPdMP.aMPdMP dMP  dMP  dA .dMPdMP dMPdMP       dMP     
+dMMMMP" VMMMP" VMMMP"dMP dMP  dMP   VMMMP"dMP dMPdMMMMMP   dMP      
+                                                                    
