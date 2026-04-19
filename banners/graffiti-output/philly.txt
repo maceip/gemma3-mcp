@@ -1,0 +1,25 @@
+Font: philly
+Height: 22
+
+                            ~+                       ~+   
+                            I7                       I7   
+                          ~II7II,                  ~II7II,
+                          =?II,                    =?II,  
+                            ?I,                      ?I,  
+        ~II     I  I+ +I7II~?I~I:  :7++I7II~         ?I,  
++I,     IIII   ,I  I? II?,II?I~I=  II~II?,II   ?III= ?I,  
+?7,    ~III7   ?I  7I ?I, +I?I,I? ,II ?I, +I: ?I= ?I:?I,  
+?I,    +I?:I:  II  II +I: ~I?I,II ?I7 +I: ~I::I?  ~II?I,  
+III7+  +I~ 7I  II  II +I~ ~I?I,II:III +I~ ~I:?I,~7I? ?I,  
+I7:?7  II~ II ,II  ?I,=I~ =7?I,~IIII= =I~ =7:IIIII   ?I,  
+I? :II II, II,:I=  =I~=I+ +I?I, 7III: =I+ +I:III  ~7 ?I,  
+I+  II=I+  =I:=I:  :I+~I+ ?7?I, :~II, ~I+ ?7II=   ,I+?I,  
+I+  II?I:  ,I~+7,   I?~I+ II?I,   7I  ~I+ II7I:    I7?I,  
+7?  IIII,   I=?I    I?:I= II?I,   II  :I= II~I~    II?I,  
+I?  7II7    I+?I    II:I= I7+7:  ,I?  :I= I7:I+    II+7:  
+7I  IIII    I++I,   I?:I= I7+I:  :I=  :I= I7 II    II+I:  
+?I, III7    I=~I:   II:I= I7+I:  =I~  :I= I7 ?I,   II+I:  
+~I+:I?I7,  ?I:,I?  ,I?~I= I7=7~  =I,  ~I= I7 ,I?   I7=7~  
+ II?I =I+  7I  II~ ?7,=I+ I7=I=  +I,  =I+ I7  I7~ :I?=I=  
+ ,7I=  I7III:   II7I= =I= I7~I+  +I,  =I= I7   IIIII ~I+  
+                                                          

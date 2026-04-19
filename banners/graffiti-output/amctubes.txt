@@ -1,0 +1,11 @@
+Font: amctubes
+Height: 8
+
+d ss.   sSSSs  d       bd s  bsss sssssSs   sSd s  bd ssssss sssss
+S    b S     S S       SS  S S    S      S S  S  S SS        S    
+S    PS       SS       SS   SS    S       S   S   SSS        S    
+S sSS'S       SS       SS    S    S       S   S    SS sSSs   S    
+S    bS       SS       SS    S    S       S   S    SS        S    
+S    P S     S  S     S S    S    S       S   S    SS        S    
+P `SS   "sss"    "sss"  P    P    P       P   P    PP sSSss  P    
+                                                                  

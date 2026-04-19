@@ -1,0 +1,18 @@
+Font: gangshit2
+Height: 15
+
+                 .                  ..       .:lx,  .;'              ..                   .'ckKo.c,                   ..        .oo.                          .'ckKo.
+   .c:.    .';ldkd,         ...  'cdOOl.  .:dkoKNc  cNO.           .cO0l.             .'codkXNk.'0K:                .cO0l.      .dN0c.                    .'codkXNk. 
+  .dNXd:loddd0NXd.         'kOccoo:;kW0:;dxo;.,KWl  '0K,':'       .oNNx.         ..;lodocxKlkx'  ;KKc    ':'       .oNNx.        ;KKOk:. .;'         ..;lodoc,.,kx'  
+,xkOXWKd:,.'oKk,          .dN0d:.  .xWXOo;.   ;XNc   oNooNXx,     ;KWO'c:'.',;cldOXOc'.  'dK0l.   oNXl. .oNXx,     ;KWO'         .xXl:k0dkOc:'.',;cldOXOc'.     .    
+...'kWO' .:O0c.    .',.  ,xXK:   .:xXNd.      lNK,   '00'oXWXx,   lNNocXNXOxdol;c0Wo       'oKKo' ,KWXo. .oXWXx,   lNNo           ,00,.lKXcXNXOxdol;c0Wo             
+    lNXl;k0o. .,cod0Xx.;doxNk..:dxdkNK;      .xWx.    cKo.oNNNXd'.lNNl ,dkl.    .OWo         .oKXo:kWNNx. .oNNNXd'.lNNl       .....;00; ', ,dkl.    .OWo             
+    ;KNX0xlcoool:,lX0'xx,.oN0xkd:..xWd.      ;KNc     .oKc.xNNXNKoxNNl          ,KN:           'xXXXN0OXk' .xNNXNKoxNNl    ,oOOOOOOkKWKc.     ..    ,KN:             
+   .lXNNOdoc,.    oNoONd:dKNk;.   :X0,      .dWk.      .xKl.0WOoONNNNx.         :N0'             ;kXXl.oX0; '0WOoONNNNx. .d0x;'..';:ld00,    'kl    :N0'             
+  .xKXWK:        .OX;oOOxxXX:    'OXc       ;KX:        .xXxcXNc'dNNNK,         dWx.               ,'   cXK: cXNc'dNNNK,'kO,          ..    .x0'    dWx.             
+  .,'oWX;        ;XO. .  ,0K,   .dNo.      .kNo.        .,kNOxWO'.lKNNd.       .kWo .:looooooollc:;,...  :KXl.xWO'.lKNNdoNk'                l0:    .kWo              
+ ..  :XNl        oNo     ,KK,  .oXd.       lNO.  .':loododxkOkXNc  :KWX:       .ONl .cc::ccllodxkO0KKKOxocdXXo.XNc  :KWX:c0Kd,            .dO;     .ONl              
+cKXkcoKWd.      '0X;     ;KK, .dKl.       ,0Ndcodddlc,'..    .kWO.  cXWO'      .kWo               ..';cox0XNNNokWO.  cXWO' .l0Xkl;'.....':dko.     .kWo              
+.;ok0XNNKo,..  'kXl.     ,KNockk,        .xNXko;..            cXNc  .dNXo.      cNO.                     .,ckXOcXNc  .dNXo. .:x0XXK00000xc.         cNO.             
+    .'o0O0KK0kxxd,       .dXKkc.         .cc'                 .OWx.  .''.       .c0c                         ...OWx.  .''.     ..,,,,,'.            .c0c             
+       . ..',,..           ..                                  .;'                .'                            .;'                                   .'             
