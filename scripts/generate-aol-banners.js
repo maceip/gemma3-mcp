@@ -1,22 +1,12 @@
-// Render BOUNTYNET in each AOL "unadjusted" font, then smush adjacent
-// glyphs together by as many columns as possible without colliding.
-//
-// Strategy:
-//   1. Render each character independently via figlet, preserving each
-//      glyph's full .flf width (including author-authored padding).
-//   2. Pad every glyph to the same height.
-//   3. For each adjacent pair, find the maximum N where overlapping
-//      glyph[i] by N columns onto glyph[i+1] never puts two non-space
-//      characters in the same cell. Apply that overlap.
-//
-// This tightens the banner back toward figlet's default layout while
-// avoiding the collisions that default smushing causes on AOL macro
-// fonts (whose per-glyph padding is hand-tuned for proportional Arial,
-// not figlet's smushing rules).
+// Raw FLF parser + direct concatenation.
+// figlet.js can introduce layout artifacts; this reads the .flf file
+// byte-for-byte, extracts each glyph exactly as the author drew it
+// (including intentional left/right padding columns and the hardblank
+// spaces that preserve internal whitespace), then joins them for
+// BOUNTYNET. No smushing, no kerning, no figlet layout.
 
 const fs = require("fs");
 const path = require("path");
-const figlet = require("figlet");
 
 const FONT_DIR = "/home/user/gemma3-mcp/banners/aol-fonts";
 const OUT_DIR  = "/home/user/gemma3-mcp/banners/output";
@@ -30,100 +20,107 @@ const FONTS = [
   "Twiggy","X-Pose","X99","X992",
 ];
 
-for (const n of FONTS) {
-  figlet.parseFont(n, fs.readFileSync(path.join(FONT_DIR, `${n}.flf`), "utf8"));
-}
+function parseFlf(data) {
+  // Split on any of \r\n, \r, \n but keep it simple: split on \n and trim \r.
+  const rawLines = data.split("\n").map(l => l.replace(/\r$/, ""));
+  const header = rawLines[0];
+  // Header: flf2a<hardblank> height baseline maxlen oldlayout commentlines [printdir] [fulllayout] [codetagcount]
+  // The hardblank is the char right after "flf2a".
+  const m = header.match(/^flf2.(.)\s+(\d+)\s+(\d+)\s+(\d+)\s+(-?\d+)\s+(\d+)/);
+  if (!m) throw new Error(`Bad header: ${header}`);
+  const hardblank = m[1];
+  const height = parseInt(m[2], 10);
+  const commentLines = parseInt(m[6], 10);
 
-function renderGlyph(ch, font) {
-  if (ch === " ") return ["  ", "  "];
-  return figlet.textSync(ch, { font }).split("\n");
-}
-
-function padBlock(rows, height) {
-  while (rows.length < height) rows.push("");
-  const w = Math.max(...rows.map(r => r.length));
-  return rows.map(r => r.padEnd(w, " "));
-}
-
-// Can we overlap `right` onto `left` by `n` columns without any row
-// having two non-space characters in the same cell?
-function canOverlap(left, right, n) {
-  if (n <= 0) return true;
-  const lw = left[0].length, rw = right[0].length;
-  if (n > lw || n > rw) return false;
-  for (let r = 0; r < left.length; r++) {
-    const lTail = left[r].slice(lw - n);
-    const rHead = right[r].slice(0, n);
-    for (let c = 0; c < n; c++) {
-      if (lTail[c] !== " " && rHead[c] !== " ") return false;
+  let idx = 1 + commentLines;
+  // Required characters: ASCII 32..126, then 7 German chars (Ä Ö Ü ä ö ü ß).
+  // We only need 32..126 (space..~) for BOUNTYNET/alphabetic text.
+  const glyphs = {};
+  for (let code = 32; code <= 126; code++) {
+    const lines = [];
+    for (let r = 0; r < height; r++) {
+      lines.push(rawLines[idx++] ?? "");
     }
+    glyphs[code] = stripGlyph(lines, hardblank);
   }
-  return true;
+  return { hardblank, height, glyphs };
 }
 
-// Merge two equal-height blocks with given overlap; in the overlap
-// region, whichever side has a non-space char wins (at most one side
-// does, by construction).
-function mergeBlocks(left, right, n) {
-  const lw = left[0].length, rw = right[0].length;
-  const out = [];
-  for (let r = 0; r < left.length; r++) {
-    const lHead = left[r].slice(0, lw - n);
-    const lTail = left[r].slice(lw - n);
-    const rHead = right[r].slice(0, n);
-    const rTail = right[r].slice(n);
-    let mid = "";
-    for (let c = 0; c < n; c++) {
-      mid += lTail[c] !== " " ? lTail[c] : rHead[c];
+// Strip the endmark character(s) from each line. The endmark is whatever
+// char the line ends with; the last line may end with the endmark twice.
+// Then replace hardblank with space.
+function stripGlyph(lines, hardblank) {
+  return lines.map((line, i) => {
+    if (!line) return "";
+    // Remove trailing whitespace is NOT what we want — the endmark might
+    // be preceded by meaningful space. Instead strip trailing endmarks.
+    let s = line;
+    // The endmark is the very last character.
+    const end = s[s.length - 1];
+    // Strip 1 or 2 trailing copies of that same char.
+    while (s.length && s[s.length - 1] === end) s = s.slice(0, -1);
+    // Replace hardblank with regular space.
+    s = s.split(hardblank).join(" ");
+    return s;
+  });
+}
+
+function renderText(text, font) {
+  const glyphBlocks = [...text].map(ch => {
+    const g = font.glyphs[ch.charCodeAt(0)];
+    if (!g) return Array(font.height).fill("  ");
+    return g.slice();
+  });
+  // Pad to font height, then trim fully-blank left AND right columns so
+  // adjacent glyphs sit ink-to-ink. A column is "blank" iff every row at
+  // that column is a space.
+  for (const g of glyphBlocks) {
+    while (g.length < font.height) g.push("");
+    const w = Math.max(0, ...g.map(r => r.length));
+    for (let i = 0; i < g.length; i++) g[i] = g[i].padEnd(w, " ");
+    let L = 0, R = w;
+    outerL: while (L < R) {
+      for (const r of g) if (r[L] !== " ") break outerL;
+      L++;
     }
-    out.push(lHead + mid + rTail);
+    outerR: while (R > L) {
+      for (const r of g) if (r[R - 1] !== " ") break outerR;
+      R--;
+    }
+    for (let i = 0; i < g.length; i++) g[i] = g[i].slice(L, R);
   }
-  return out;
-}
-
-function smush(text, font) {
-  const glyphs = [...text].map(ch => renderGlyph(ch, font));
-  const height = Math.max(...glyphs.map(g => g.length));
-  const blocks = glyphs.map(g => padBlock(g.slice(), height));
-  let acc = blocks[0];
-  for (let i = 1; i < blocks.length; i++) {
-    const next = blocks[i];
-    const maxN = Math.min(acc[0].length, next[0].length);
-    let n = maxN;
-    while (n > 0 && !canOverlap(acc, next, n)) n--;
-    acc = mergeBlocks(acc, next, n);
+  const rows = [];
+  for (let r = 0; r < font.height; r++) {
+    // 1-col gutter so ink doesn't weld together across glyphs
+    rows.push(glyphBlocks.map(g => g[r]).join(" "));
   }
-  return acc.join("\n");
+  return rows.join("\n");
 }
 
-// Diagnostic: is the font unfixed by the T-vs-TTTTT heuristic?
-function tTest(font) {
-  const oneBlock = smush("T", font).split("\n");
-  const manyBlock = smush("TTTTT", font).split("\n");
-  const one = oneBlock.map(r => r.trimEnd()).join("\n").trim();
-  const many = manyBlock.join("\n");
-  // Slice the T-block width out of the many-block first and last positions.
-  const w = Math.max(...oneBlock.map(r => r.length));
-  const totalW = Math.max(...manyBlock.map(r => r.length));
-  const first = manyBlock.map(r => r.slice(0, w)).join("\n").trim();
-  const last  = manyBlock.map(r => r.slice(totalW - w)).join("\n").trim();
-  return first !== last;
+const idx = [
+  "# AOL Macro Fonts (unadjusted) — BOUNTYNET banners",
+  "",
+  "Rendered by parsing each .flf file directly and concatenating the",
+  "author-drawn glyph blocks as-is. No figlet layout layer, no smushing,",
+  "no added padding — each glyph appears at exactly the width the font",
+  "author stored in the file.",
+  "",
+  "| Font | Height |",
+  "|------|--------|",
+];
+
+for (const name of FONTS) {
+  const data = fs.readFileSync(path.join(FONT_DIR, `${name}.flf`), "utf8");
+  const font = parseFlf(data);
+  const banner = renderText("BOUNTYNET", font);
+  const safe = name.replace(/[^\w.-]+/g, "_");
+  fs.writeFileSync(
+    path.join(OUT_DIR, `${safe}.txt`),
+    `Font: ${name}\nHeight: ${font.height}\n\n${banner}\n`
+  );
+  idx.push(`| ${name} | ${font.height} |`);
+  console.log(`h=${String(font.height).padStart(2)}  ${name}`);
 }
 
-const idx = ["# AOL Macro Fonts (unadjusted) — BOUNTYNET banners", "",
-  "Each char rendered alone then smushed onto its neighbor by the",
-  "maximum column count that causes no ink-on-ink collision. Tightens",
-  "spacing without the glyph breakage figlet's default smushing causes.",
-  "", "| Font | T-check differs? |", "|------|------------------|"];
-
-for (const font of FONTS) {
-  const banner = smush("BOUNTYNET", font);
-  const diff   = tTest(font);
-  const safe   = font.replace(/[^\w.-]+/g, "_");
-  fs.writeFileSync(path.join(OUT_DIR, `${safe}.txt`),
-    `Font: ${font}\nT-check differs: ${diff ? "yes" : "no"}\n\n${banner}\n`);
-  idx.push(`| ${font} | ${diff ? "yes" : "no"} |`);
-  console.log(`${diff ? "diff " : "ok   "}  ${font}`);
-}
 fs.writeFileSync(path.join(OUT_DIR, "README.md"), idx.join("\n") + "\n");
 console.log(`\nWrote ${FONTS.length} files to ${OUT_DIR}`);

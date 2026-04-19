@@ -1,39 +1,40 @@
 # AOL Macro Fonts (unadjusted) — BOUNTYNET banners
 
-Each char rendered alone then smushed onto its neighbor by the
-maximum column count that causes no ink-on-ink collision. Tightens
-spacing without the glyph breakage figlet's default smushing causes.
+Rendered by parsing each .flf file directly and concatenating the
+author-drawn glyph blocks as-is. No figlet layout layer, no smushing,
+no added padding — each glyph appears at exactly the width the font
+author stored in the file.
 
-| Font | T-check differs? |
-|------|------------------|
-| Abraxis-Small | yes |
-| Bent | yes |
-| Blest | yes |
-| Boie | yes |
-| Boie2 | yes |
-| Bone's Font | yes |
-| CaMiZ | yes |
-| CeA | yes |
-| CeA2 | yes |
-| Cheese | yes |
-| DaiR | yes |
-| Filth | yes |
-| FoGG | yes |
-| Galactus | yes |
-| Glue | yes |
-| HeX's Font | yes |
-| Hellfire | yes |
-| MeDi | yes |
-| Mer | yes |
-| PsY | no |
-| PsY2 | yes |
-| Ribbit | yes |
-| Ribbit2 | no |
-| Ribbit3 | yes |
-| Sony | yes |
-| TRaC Mini | yes |
-| TRaC Tiny | yes |
-| Twiggy | yes |
-| X-Pose | no |
-| X99 | yes |
-| X992 | yes |
+| Font | Height |
+|------|--------|
+| Abraxis-Small | 7 |
+| Bent | 9 |
+| Blest | 11 |
+| Boie | 5 |
+| Boie2 | 5 |
+| Bone's Font | 7 |
+| CaMiZ | 4 |
+| CeA | 2 |
+| CeA2 | 2 |
+| Cheese | 11 |
+| DaiR | 9 |
+| Filth | 5 |
+| FoGG | 15 |
+| Galactus | 9 |
+| Glue | 3 |
+| HeX's Font | 11 |
+| Hellfire | 6 |
+| MeDi | 4 |
+| Mer | 3 |
+| PsY | 10 |
+| PsY2 | 3 |
+| Ribbit | 6 |
+| Ribbit2 | 6 |
+| Ribbit3 | 4 |
+| Sony | 12 |
+| TRaC Mini | 4 |
+| TRaC Tiny | 4 |
+| Twiggy | 7 |
+| X-Pose | 13 |
+| X99 | 13 |
+| X992 | 12 |
