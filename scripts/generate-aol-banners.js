@@ -71,9 +71,7 @@ function renderText(text, font) {
     if (!g) return Array(font.height).fill("  ");
     return g.slice();
   });
-  // Pad to font height, then trim fully-blank left AND right columns so
-  // adjacent glyphs sit ink-to-ink. A column is "blank" iff every row at
-  // that column is a space.
+  // Pad to font height, then trim fully-blank left AND right columns.
   for (const g of glyphBlocks) {
     while (g.length < font.height) g.push("");
     const w = Math.max(0, ...g.map(r => r.length));
@@ -89,12 +87,64 @@ function renderText(text, font) {
     }
     for (let i = 0; i < g.length; i++) g[i] = g[i].slice(L, R);
   }
-  const rows = [];
-  for (let r = 0; r < font.height; r++) {
-    // 1-col gutter so ink doesn't weld together across glyphs
-    rows.push(glyphBlocks.map(g => g[r]).join(" "));
+  // Smush adjacent glyphs by the maximum column count that puts no two
+  // non-space characters in the same cell. Starts with a 1-col gutter
+  // minimum so glyph ink never welds together across the boundary.
+  let acc = glyphBlocks[0];
+  for (let i = 1; i < glyphBlocks.length; i++) {
+    acc = smushPair(acc, glyphBlocks[i], font.height);
   }
-  return rows.join("\n");
+  return acc.join("\n");
+}
+
+// Decorative drop-shadow characters used by AOL macro fonts. They
+// count as "soft" for the overlap calculation: adjacent glyphs may
+// overlap them, and in the overlap region hard ink from the other
+// glyph overwrites them. This lets Cheese, FoGG, PsY, Sony etc. tuck
+// their drop-shadows under the next glyph's leading whitespace the way
+// they would in AOL's Arial rendering.
+const SOFT = new Set([
+  " ", "'", "\u2018", "\u2019", "\u201A", "\u201B",
+  "\"", "\u201C", "\u201D", "\u201E",
+  "`", "\u00B4", "\u02CB", "\u02CA",
+  ",", ".", ";", ":", "\u00B0", "\u00A8", "\u02DC",
+  "\u00B8", "\u02D9", "*", "\u2022",
+]);
+const isSoft = ch => SOFT.has(ch);
+
+function smushPair(left, right, height) {
+  const lw = left[0].length, rw = right[0].length;
+  const maxN = Math.min(lw, rw);
+  // Find the largest N where no overlap column has hard ink on both
+  // sides (spaces and soft chars are allowed to coexist).
+  let n = maxN;
+  outer: for (; n > 0; n--) {
+    for (let r = 0; r < height; r++) {
+      for (let c = 0; c < n; c++) {
+        const lc = left[r][lw - n + c];
+        const rc = right[r][c];
+        if (!isSoft(lc) && !isSoft(rc)) continue outer;
+      }
+    }
+    break;
+  }
+  const out = [];
+  for (let r = 0; r < height; r++) {
+    let merged = left[r].slice(0, lw - n);
+    for (let c = 0; c < n; c++) {
+      const lc = left[r][lw - n + c];
+      const rc = right[r][c];
+      if (lc === " ") merged += rc;
+      else if (rc === " ") merged += lc;
+      else if (isSoft(lc) && !isSoft(rc)) merged += rc; // hard ink wins
+      else if (!isSoft(lc) && isSoft(rc)) merged += lc; // hard ink wins
+      else merged += lc; // both soft: keep left
+    }
+    merged += right[r].slice(n);
+    out.push(merged);
+  }
+  const maxLen = Math.max(...out.map(s => s.length));
+  return out.map(s => s.padEnd(maxLen, " "));
 }
 
 const idx = [

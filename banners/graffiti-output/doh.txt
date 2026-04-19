@@ -1,0 +1,28 @@
+Font: doh
+Height: 25
+
+                                                                                                                                                                                                
+                                                                                                                                                                                                
+BBBBBBBBBBBBBBBBB   OOOOOOOOO     UUUUUUUU     UUUUUUUUNNNNNNNN        NNNNNNNNTTTTTTTTTTTTTTTTTTTTTTTYYYYYYY       YYYYYYYNNNNNNNN        NNNNNNNNEEEEEEEEEEEEEEEEEEEEEETTTTTTTTTTTTTTTTTTTTTTT
+B::::::::::::::::BOO:::::::::OO   U::::::U     U::::::UN:::::::N       N::::::NT:::::::::::::::::::::TY:::::Y       Y:::::YN:::::::N       N::::::NE::::::::::::::::::::ET:::::::::::::::::::::T
+B::::::BBBBBB:::OOB::::::::::::OO U::::::U     U::::::UN::::::::N      N::::::NT:::::::::::::::::::::TY:::::Y       Y:::::YN::::::::N      N::::::NE::::::::::::::::::::ET:::::::::::::::::::::T
+BB:::::B     B:O:::B:::OOO:::::::OUU:::::U     U:::::UUN:::::::::N     N::::::NT:::::TT:::::::TT:::::TY::::::Y     Y::::::YN:::::::::N     N::::::NEE::::::EEEEEEEEE::::ET:::::TT:::::::TT:::::T
+  B::::B     B:O:::B::O   O::::::O U:::::U     U:::::U N::::::::::N    N::::::NTTTTTT  T:::::T  TTTTTTYYY:::::Y   Y:::::YYYN::::::::::N    N::::::N  E:::::E       EEEEEETTTTTT  T:::::T  TTTTTT
+  B::::B     B:O:::B:O     O:::::O U:::::D     D:::::U N:::::::::::N   N::::::N        T:::::T           Y:::::Y Y:::::Y   N:::::::::::N   N::::::N  E:::::E                     T:::::T        
+  B::::BBBBBB::O::B::O     O:::::O U:::::D     D:::::U N:::::::N::::N  N::::::N        T:::::T            Y:::::Y:::::Y    N:::::::N::::N  N::::::N  E::::::EEEEEEEEEE           T:::::T        
+  B::::::::::::OBB:::O     O:::::O U:::::D     D:::::U N::::::N N::::N N::::::N        T:::::T             Y:::::::::Y     N::::::N N::::N N::::::N  E:::::::::::::::E           T:::::T        
+  B::::BBBBBB::O::B::O     O:::::O U:::::D     D:::::U N::::::N  N::::N:::::::N        T:::::T              Y:::::::Y      N::::::N  N::::N:::::::N  E:::::::::::::::E           T:::::T        
+  B::::B     B:O:::B:O     O:::::O U:::::D     D:::::U N::::::N   N:::::::::::N        T:::::T               Y:::::Y       N::::::N   N:::::::::::N  E::::::EEEEEEEEEE           T:::::T        
+  B::::B     B:O:::B:O     O:::::O U:::::D     D:::::U N::::::N    N::::::::::N        T:::::T               Y:::::Y       N::::::N    N::::::::::N  E:::::E                     T:::::T        
+  B::::B     B:O:::B::O   O::::::O U::::::U   U::::::U N::::::N     N:::::::::N        T:::::T               Y:::::Y       N::::::N     N:::::::::N  E:::::E       EEEEEE        T:::::T        
+BB:::::BBBBBB::O:::B:::OOO:::::::O U:::::::UUU:::::::U N::::::N      N::::::::N      TT:::::::TT             Y:::::Y       N::::::N      N::::::::NEE::::::EEEEEEEE:::::E      TT:::::::TT      
+B:::::::::::::::OOB::::::::::::OO   UU:::::::::::::UU  N::::::N       N:::::::N      T:::::::::T          YYYY:::::YYYY    N::::::N       N:::::::NE::::::::::::::::::::E      T:::::::::T      
+B::::::::::::::::BOO:::::::::OO       UU:::::::::UU    N::::::N        N::::::N      T:::::::::T          Y:::::::::::Y    N::::::N        N::::::NE::::::::::::::::::::E      T:::::::::T      
+BBBBBBBBBBBBBBBBB   OOOOOOOOO           UUUUUUUUU      NNNNNNNN         NNNNNNN      TTTTTTTTTTT          YYYYYYYYYYYYY    NNNNNNNN         NNNNNNNEEEEEEEEEEEEEEEEEEEEEE      TTTTTTTTTTT      
+                                                                                                                                                                                                
+                                                                                                                                                                                                
+                                                                                                                                                                                                
+                                                                                                                                                                                                
+                                                                                                                                                                                                
+                                                                                                                                                                                                
+                                                                                                                                                                                                

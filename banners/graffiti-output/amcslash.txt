@@ -1,0 +1,13 @@
+Font: amcslash
+Height: 10
+
+.s5SSSs. .s5SSSs. .s    s. .s    ss5SSSSss5 s. .s    s. .s5SSSss5SSSSs.
+      SS.      SS.      SS.      SS.SSS     SS.      SS.      SS.SSS   
+sS    S%SsS    S%SsS    S%SsSs.  S%SS%S ssS SSSsSs.  S%SsS    `:;S%S   
+SS    S%SSS    S%SSS    S%SSS`S. S%SS%S SSS SSSSS`S. S%SSS       S%S   
+SS .sSSS SS    S%SSS    S%SSS `S.S%SS%S  SSSSS SS `S.S%SSSSs.    S%S   
+SS    S%SSS    S%SSS    S%SSS  `sS%SS%S   SSS  SS  `sS%SSS       S%S   
+SS    `:;SS    `:;SS    `:;SS    `:;`:;   `:;  SS    `:;SS       `:;   
+SS    ;,.SS    ;,.SS    ;,.SS    ;,.;,.   ;,.  SS    ;,.SS    ;,.;,.   
+`:;;;;;:'`:;;;;;:'`:;;;;;:':;    ;:';:'   ;:'  :;    ;:'`:;;;;;:';:'   
+                                                                       
