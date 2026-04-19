@@ -1,0 +1,18 @@
+Font: CeA2
+Unfixed: yes
+
+--- T (single) ---
+l¯¯¯¯¯l 
+ ¯l__l¯‘
+
+--- TTTTT (five) ---
+l¯¯¯¯¯l   l¯¯¯¯¯l   l¯¯¯¯¯l   l¯¯¯¯¯l   l¯¯¯¯¯l     
+ ¯l__l¯‘    ¯l__l¯‘    ¯l__l¯‘    ¯l__l¯‘    ¯l__l¯‘
+
+--- BOUNTYNET (default figlet layout) ---
+ l¯¯l)¯¯)  /¯¯l\¯¯\     /¯¯/ /¯¯/'  l¯¯\l¯¯l   l¯¯¯¯¯l    /¯¯/_\¯¯\‘  l¯¯\l¯¯l   l¯¯(\__\  l¯¯¯¯¯l  
+ l__l)¯¯)  \__\l__/     \__\/__'\   l_l\___l    ¯l__l¯‘    ¯¯/__\¯¯   l_l\___l   l__(/¯¯/   ¯l__l¯‘  
+
+--- BOUNTYNET (fixed: per-char + 1-space gutter) ---
+ l¯¯l)¯¯)   /¯¯l\¯¯\      /¯¯/ /¯¯/'   l¯¯\l¯¯l    l¯¯¯¯¯l      /¯¯/_\¯¯\‘   l¯¯\l¯¯l    l¯¯(\__\   l¯¯¯¯¯l   
+ l__l)¯¯)   \__\l__/      \__\/__'\    l_l\___l     ¯l__l¯‘     ¯¯/__\¯¯     l_l\___l    l__(/¯¯/    ¯l__l¯‘  
