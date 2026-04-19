@@ -1,0 +1,13 @@
+Font: Pebbles
+Height: 10
+
+o.oOOOo.  .oOOOo. O       oo.     OoOoOOoOOoo       Oo.     Oo.OOoOoooOoOOoOOo
+ o     o .O     o.o       OOo     o    o    O       oOo     o O          o    
+ O     O O       oO       oO O    O    o    `o     O'O O    O o          o    
+ oOooOO. o       Oo       oO  o   o    O      O   o  O  o   o ooOO       O    
+ o     `OO       oo       OO   o  O    o       `O'   O   o  O O          o    
+ O      oo       OO       Oo    O O    O        o    o    O O o          O    
+ o     .O`o     O'`o     Ooo     Oo    O        O    o     Oo O          O    
+ `OooOO'  `OoooO'  `OoooO'OO     `o    o'       O    O     `oooOooOoO    o'   
+                                                                              
+                                                                              

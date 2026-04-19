@@ -1,0 +1,11 @@
+Font: Tanja
+Height: 8
+
+B)bbbb   O)oooo U)    uuN)n   nnT)ttttttY)    yyN)n   nnE)eeeeeeT)tttttt
+B)   bb O)    ooU)    uuN)nn  nn   T)    Y)  yy N)nn  nnE)         T)   
+B)bbbb  O)    ooU)    uuN) nn nn   T)     Y)yy  N) nn nnE)eeeee    T)   
+B)   bb O)    ooU)    uuN)  nnnn   T)      Y)   N)  nnnnE)         T)   
+B)    bbO)    ooU)    uuN)   nnn   T)      Y)   N)   nnnE)         T)   
+B)bbbbb  O)oooo  U)uuuu N)    nn   T)      Y)   N)    nnE)eeeeee   T)   
+                                                                        
+                                                                        

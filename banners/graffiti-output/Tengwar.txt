@@ -1,0 +1,13 @@
+Font: Tengwar
+Height: 10
+
+             .dP"YbdP"Yb.                                         .dP'       
+           dP'   d'`b   'Yb                                     dP'          
+                                                                             
+`Yb d88b d88b'Yb      'YbYb d88b d88b`Yb.d888bdP""Yb`Yb d88b d88b'YbYb.d888b 
+ 88P   8Y   8b88       8888P   8Y   8b88'    8Y    Yb88P   8Y   8b8888'    8Y
+ 88    8P   8888       8888    8P   8888     8P    dP88    8P   888888     8P
+ 88  .dP' .dP'8P      .8P8P  bdP  bdP 88   ,dPYbwwdP.8P  bdP  bdP.8P88   ,dP 
+ 888888888888b.                       88                            88       
+ 88                                   88                            88       
+.8P                                  .8P                           .8P       
