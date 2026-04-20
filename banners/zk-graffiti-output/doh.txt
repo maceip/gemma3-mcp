@@ -1,0 +1,29 @@
+Font: doh
+Height: 25
+Text: zk.place
+
+                                                                                                                         
+                                                                                                                         
+                 kkkkkkkk                               lllllll                                                          
+                 k::::::k                               l:::::l                                                          
+                 k::::::k                               l:::::l                                                          
+                 k::::::k                               l:::::l                                                          
+zzzzzzzzzzzzzzzzz k:::::k    kkkkkkkppppp   ppppppppp    l::::l   aaaaaaaaaaaaa      cccccccccccccccc    eeeeeeeeeeee    
+z:::::::::::::::z k:::::k   k:::::k p::::ppp:::::::::p   l::::l   a::::::::::::a   cc:::::::::::::::c  ee::::::::::::ee  
+z::::::::::::::z  k:::::k  k:::::k  p:::::::::::::::::p  l::::l   aaaaaaaaa:::::a c:::::::::::::::::c e::::::eeeee:::::ee
+zzzzzzzz::::::z   k:::::k k:::::k   pp::::::ppppp::::::p l::::l            a::::ac:::::::cccccc:::::ce::::::e     e:::::e
+      z::::::z    k::::::k:::::k     p:::::p     p:::::p l::::l     aaaaaaa:::::ac::::::c     ccccccce:::::::eeeee::::::e
+     z::::::z     k:::::::::::k      p:::::p     p:::::p l::::l   aa::::::::::::ac:::::c             e:::::::::::::::::e 
+    z::::::z      k:::::::::::k      p:::::p     p:::::p l::::l  a::::aaaa::::::ac:::::c             e::::::eeeeeeeeeee  
+   z::::::z       k::::::k:::::k     p:::::p    p::::::p l::::l a::::a    a:::::ac::::::c     ccccccce:::::::e           
+  z::::::zzzzzzzzk::::::k k:::::k    p:::::ppppp:::::::pl::::::la::::a    a:::::ac:::::::cccccc:::::ce::::::::e          
+ z::::::::::::::zk::::::k  k:::::k.. p::::::::::::::::p l::::::la:::::aaaa::::::a c:::::::::::::::::c e::::::::eeeeeeee  
+z:::::::::::::::zk::::::k   k:::::k. p::::::::::::::pp  l::::::l a::::::::::aa:::a cc:::::::::::::::c  ee:::::::::::::e  
+zzzzzzzzzzzzzzzzzkkkkkkkk    kkkkkkk p::::::pppppppp    llllllll  aaaaaaaaaa  aaaa   cccccccccccccccc    eeeeeeeeeeeeee  
+                                     p:::::p                                                                             
+                                     p:::::p                                                                             
+                                    p:::::::p                                                                            
+                                    p:::::::p                                                                            
+                                    p:::::::p                                                                            
+                                    ppppppppp                                                                            
+                                                                                                                         

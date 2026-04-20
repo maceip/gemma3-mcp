@@ -1,0 +1,12 @@
+Font: amctubes
+Height: 8
+Text: zk.place
+
+sSSSSSsd     S    ddss.  d s.    sSSsd sss  
+     s S    P     SS   b S  ~O  S    S      
+    s  Ssss'      SS   P S   `bS     S      
+   s   S   s      SSsS'  S sSSOS     S sSSs 
+  s    S    b .ss SS     S    OS     S      
+ s     S     bSSSzSS     S    O S    S      
+sSSSSSsP     P'ZZ'PP sSSsP    P  "sssP sSSss
+                                            

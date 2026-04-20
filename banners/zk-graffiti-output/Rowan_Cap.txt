@@ -1,0 +1,10 @@
+Font: Rowan Cap
+Height: 6
+Text: zk.place
+
+    dMMMMMPdMP dMP   dMMMMb dMP    .aMMMb .aMMMb dMMMMMP
+     .dMP"dMP.dMP   dMP.dMPdMP    dMP"dMPdMP"VMPdMP     
+   .dMP" dMMMMK"   dMMMMP"dMP    dMMMMMPdMP    dMMMP    
+ .dMP"  dMP"AMFamrdMP    dMP    dMP dMPdMP.aMPdMP       
+dMMMMMPdMP dMPdMPdMP    dMMMMMPdMP dMP VMMMP"dMMMMMP    
+                                                        

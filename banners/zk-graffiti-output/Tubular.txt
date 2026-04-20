@@ -1,0 +1,12 @@
+Font: Tubular
+Height: 8
+Text: zk.place
+
+         O~~                O~~                        
+         O~~                O~~                        
+O~~~~ O~~O~~  O~~   O~ O~~  O~~   O~~      O~~~ O~~    
+     O~~ O~~ O~~    O~  O~~ O~~ O~~  O~~ O~~  O~   O~~ 
+   O~~   O~O~~      O~   O~~O~~O~~   O~~O~~  O~~~~~ O~~
+  O~~    O~~ O~~    O~~ O~~ O~~O~~   O~~ O~~ O~        
+O~~~~~~~~O~~  O~~O~~O~~    O~~~  O~~ O~~~  O~~~O~~~~   
+                    O~~                                

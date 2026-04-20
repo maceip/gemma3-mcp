@@ -1,0 +1,19 @@
+Font: gangshit2
+Height: 15
+Text: zk.place
+
+                     :Oc.   cKx.         ;dd;            .c:.                      .              .'.                        .oo.            
+                 ..,'dW0,   .kNk.        ,ONXkc.         '0No                     ,ko.           'kKo.    .,.                .dN0c.          
+            .':ox0K0lKWX:    'OWx.        .xNNNKkl;.      :XXc                    ;XNc          .dNWO.   cKNO'                ;KKOk:. .;'    
+       .,coxkkdxKKl.OxxXl    c0k'          .dNN0dkKKkl;.  .oNO'                   ,KW0,         :XNNNd. ;KX0:                 .xXl:k0dkO,    
+ .codxkkxdc,..;xx'dk:.;Xx. 'xOc.            .xWK; .;okKKxc''0Nl                   ;KNNx.       .kW0dKNd'dWOc.                  ,00,.lKX:     
+ .:ol:'.    'dk: .'.  ,Kk,cOd.          ...'''OWk.    .:xXXxoWO.                  :0dkNl       :XWo.,ONKKWk;.              .....;00; ',      
+          .lOl.   ..  '0XOd,...',:cllllclkXKd :XNl  .':ldkO0ONK,                  l0;;KK;    ..oWX:  .dNNWx'.    ''     ,oOOOOOOkKWKc.     ..
+        .:kd'    'kd..cKN0dllllll:;'...'oKk;  .xNKdoooc;'...,KN:        ..        o0,.xN0doooolxW0'   .lKKc.    .kXd. .d0x;'..';:ld00,    'kl
+       ,xx;      .k0,cxONk;..        .:00c.,codkXWx'        .OWl       ;0Kl. ..';l0XkxxONKl.. .kWO.     ..       ;KNl'kO,          ..    .x0'
+     .dk:.        ,OO; ;Xk.         'xXxlxkxl,..xWk.        .kWo       .dNXlxOOkxOXd'. .kNd.  .OWO.              '0WdoNk'                l0: 
+   .l0Olcodxxxkkkkx0NXd'OK,        :KK:,c,.     cNK,        .kWk;''''.. .dNXc..  lO,    'ONd. .kW0'             .oNX:.c0Kd,            .dO;  
+  :ONXOxdl:;,'''',:cokKOdNc      .oXO'          'ONl        .xXOkkkOO00OxkXNXd' .Ox.     'ONx. lNNl            ,kX0:    .l0Xkl;'.....':dko.  
+.xKxc,.               ..:Xx.    .xXx. ..,,,.    .kNl         .........,:ldk0KO; lK:       .kN0:.xNKc.     ..'cxKOc.      .:x0XXK00000xc.     
+.:'                     .l:.   .kWXxlllc:;'.     .,.                       ... '0k.        .lx; .cOKOxooodddddc'            ..,,,,,'.        
+                               ,oc;'.                                          .;.                 .,,;,,...                                 

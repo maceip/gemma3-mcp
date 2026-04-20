@@ -1,0 +1,14 @@
+Font: amcslash
+Height: 10
+Text: zk.place
+
+                                                    
+.s5SSSSs.s    s. .s5SSSs. .s.s5SSSs. .s5SSSss5SSSs. 
+      SSS     SS.      SS.        SS.      SS.   SS.
+    sSSSsS    S%SsS    S%SsSsS    S%SsS    sS;   `:;
+   sSS" SSSSs.S:'SS .sS::'SSSSSs. S%SSS    SSSs.    
+  sSS   SS  "SS. SS       SSSS    S%SSS    SS       
+ sSS    SS    SS;SS       SSSS    `:;SS    SS       
+sSS     SS   S%%SSS       SSSS  ;,.,.SS    SS.   ;,.
+`:;;;;;:';    SS'`:       `:;;;;;:':'`:;;;;;:';;;;:'
+                                                    

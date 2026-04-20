@@ -1,0 +1,10 @@
+Font: Stampatello
+Height: 6
+Text: zk.place
+
+  .    .      
+,_| ,-.|-.,--.
+ /|<| ||-|||-'
+'"':|-'`-^`--'
+    |         
+    '         

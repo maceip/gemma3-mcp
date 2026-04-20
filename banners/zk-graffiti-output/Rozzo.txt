@@ -1,0 +1,11 @@
+Font: Rozzo
+Height: 7
+Text: zk.place
+
+      888              888                     
+8P d8P888 ee   888 88e 888,"Y88b e88'888 ,e e, 
+P d8P 888 P    888 888b8888" 888d888  '8d88 88b
+ d8P d888 b d8b888 888P888ee 888Y888   ,888   ,
+d8P d8888 8bY8P888 88" 88888 888 "88,e8' "YeeP"
+               888                             
+               888                             

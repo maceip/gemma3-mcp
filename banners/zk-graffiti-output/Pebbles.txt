@@ -1,0 +1,14 @@
+Font: Pebbles
+Height: 10
+Text: zk.place
+
+    o            o            
+    O           O             
+    o           o             
+    o           O             
+ooOOO  o   .oOo.o.oOoO'oOooOo.
+  o OoO    O   oOO   oO  OooO'
+ O  o  O oOo   Ooo   Oo  O    
+OooOO   oOooOoO'OoOoO'oOoOOoO'
+           O                  
+           o'                 
