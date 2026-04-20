@@ -1,0 +1,18 @@
+Font: cholo1
+Height: 14
+Text: zk.place
+
+ .,       .;',,        ,;.'.       ::             ;xd',olcc:::ccololcc::::co;.
+ kK,      ,Koxk.      'OdONc     ..kx.           .kNXoxKl:ccccc:;oKo::cccc:;..
+ OWk;.  .;ONcxk.      lK;OMx.     .kx.           ;KdxOdO.        o0,  .;:.    
+ 0kcddoodd0X:dO.     '0d kMK,     .kx.         ';dK,cKoK,        oXkdddxKd.   
+ Kl  .....oK;dO.    .xO' xWNl     .kx.        .kKKx.'0dKc      .lONk:'  ;l.   
+ O: .;lddoxo.dO.    o0;  dX0Odolcc:kx.        :KKKl  dOkx.      .'kk,.        
+ .:dkdc,..,l.d0'   l0:   o0;.,;::xXkx.        oK00,  cK:Kc        cK0:        
+.o0o.     cK:o0'  l0c    lK;    'kxOx.     ..'O00x.  '0dd0,      ..xWO.    .. 
+lK:       :K:o0'.o0:     :K:  .oOokN0,    .xdlK0Xk,'..x0'dO;    'kl'lOk.   cO,
+0d        :K:o0:dK:      ;Xkcdxo':NMXkdl,..kxkXXXxodod0Nl.cOd'  '0o  .xk;  lK;
+Kl..',,,'.lXclNX0Ox;.    ,K0l,.  'xNx.'cdxdKK;:0x.   .;0k  .lkd::0d   .:xx:xX:
+KOodooooodOK:cXK:.:dddl, .kx.     .ol    .:dOl'd;      cl    .;lxkc     .;okx'
+'..       .. ...    .':,  ld.                                                 
+                          ..                                                  

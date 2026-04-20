@@ -1,0 +1,11 @@
+Font: Tinker-Toy
+Height: 7
+Text: zk.place
+
+   o        o          
+   | /      |          
+o-oOO   o-o | oo o-oo-o
+ / | \  |  ||| ||   |-'
+o-oo  oOO-o oo-o-o-oo-o
+        |              
+        o              

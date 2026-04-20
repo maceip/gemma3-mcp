@@ -1,0 +1,26 @@
+Font: philly
+Height: 22
+Text: zk.place
+
+                                                 
+                        ?I,                      
+                        7I                       
+       +7               II                       
+       ,I?     ~        7I                       
+,???II7:+I,   7II7~     7I  ?777=     +I         
+,?I?II+ ,I?   =7:?II,   7?   , I+  +III~   ?III= 
+   ,II   7I  +?7I~:II~ ,I= ~II 7+ +I~:?   ?I= ?I:
+ IIII?+  ?I II=II7+ ?I+:I~+IIIII? II     :I?  ~II
+  II==~  =III+  II+  II:I~II ,7I?,II  :, ?I,~7I? 
+ :I?,I=  ~III   I7? ~II~I~I+  III:II  II IIIII   
+ I7  II: :I7,   =II7I?,~I=I~  ,II~I+  I7:III  ~7 
+:II  ,II ,II=I~IIII    ~I=I=   I7~I?  IIII=   ,I+
+?7    :I?,IIII+  I7:   =I,I?   I7,II  ?I7I:    I7
+II     ?7,IIII+  +I+   =I,II   II,II  +I~I~    II
+I?     =I:IIII+  :II   =I,?I~  II II  =I~I+    II
+I?     :I~II=I~   II   =I,,II ~II ?I  ~I~II    II
+7I     :I~I?+I:   II   =I, +7+?I~ :I+ +7:?I,   II
++I=    +7~I:II,   II,  =I,  IIII   II II,,I?   I7
+ II=  =II   +I    ?I:  =I,   II=    7II+  I7~ :I?
+  +7III?          ?I,  =I:    :            IIIII 
+                                                 

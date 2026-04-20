@@ -1,0 +1,12 @@
+Font: Tanja
+Height: 8
+Text: zk.place
+
+       k)            l)L                    
+       k)             l)                    
+z)ZZZZZk)  KK  p)PPPP l)a)AAAA c)CCCCe)EEEEE
+    z) k)KK    p)   PPl) a)AAAc)     e)EEEE 
+  z)   k) KK **p)   PPl)a)   Ac)     e)     
+z)ZZZZZk)  KK##p)PPPPl)LLa)AAAAc)CCCC e)EEEE
+               p)                           
+               p)                           

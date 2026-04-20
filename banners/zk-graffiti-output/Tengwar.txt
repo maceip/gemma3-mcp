@@ -1,0 +1,14 @@
+Font: Tengwar
+Height: 10
+Text: zk.place
+
+                .d  .d             db        .dP'
+                P'  P'          db    db   dP'   
+     `Ybaaaaaad8'                                
+ .aaa. .dP'   88 `Yb.d888bY8888888bYb.dP'  dPYb  
+d'   `b88     88  88'    8Y .dP'   8888    8888  
+`b.  .8Y8    .88.d88.d   8PdP      88Y8   .8888  
+   .dP`bY888P'88P'88P' ,dP88     ..8P`Y88P'888P  
+.dP'  dP      88  88888888bYb...dP         88    
+   .dP'       88  88        `"""'          88    
+.dP'          Y8..8P                       Y8.   
